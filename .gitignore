@@ -1,0 +1,81 @@
+# ======================
+# Go Build and Binary Files
+# ======================
+/bin/
+/out/
+/build/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# ======================
+# Go Modules and Vendor
+# ======================
+/vendor/
+/Gopkg.lock
+/Gopkg.toml
+
+# ======================
+# IDE and Editor Specific Files
+# ======================
+# VS Code
+.vscode/
+
+# JetBrains IDEs (GoLand, IntelliJ)
+.idea/
+/*.iml
+
+# MacOS system files
+.DS_Store
+
+# ======================
+# Environment Files
+# ======================
+# Env files with secrets or configs
+.env
+.env.local
+.env.*.local
+
+# ======================
+# Docker Files
+# ======================
+# Docker Compose overrides, local config files, volumes
+docker-compose.override.yml
+docker-compose.local.yml
+*.log
+
+# ======================
+# Logs and Temporary Files
+# ======================
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# ======================
+# Test Output and Coverage
+# ======================
+coverage.out
+*.coverprofile
+
+# ======================
+# Database files and migrations (if generated locally)
+# ======================
+*.sql
+*.sqlite
+*.db
+
+# ======================
+# Others
+# ======================
+# Node.js dependencies (if any front-end)
+node_modules/
+
+# Binary files from editors
+*.class
+*.pyc

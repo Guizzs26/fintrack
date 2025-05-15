@@ -1,0 +1,36 @@
+# Ignore Go build output directories
+bin/
+out/
+build/
+dist/
+
+# Ignore Go vendor directory if you’re not using it inside container
+vendor/
+
+# Ignore Git files and folders
+.git
+.gitignore
+
+# Ignore environment files (may contain secrets)
+.env
+.env.local
+.env.*.local
+
+# Ignore editor and OS files
+.vscode/
+.idea/
+.DS_Store
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Ignore docker-compose override files if you don't want to add them to image context
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Ignore node_modules in case you have front-end
+node_modules/
