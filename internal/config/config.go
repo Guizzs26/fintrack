@@ -1,8 +1,22 @@
 package config
 
 import (
-	"net/http"
+	"errors"
+	"fmt"
+	"log"
 	"time"
+
+	"github.com/go-playground/validator/v10"
+)
+
+const (
+	EnvDev  = "development"
+	EnvProd = "production"
+
+	defaultReadTimeout       = 10 * time.Second
+	defaultReadHeaderTimeout = 5 * time.Second
+	defaultWriteTimeout      = 10 * time.Second
+	defaultIdleTimeout       = 60 * time.Second
 )
 
 type Config struct {
@@ -11,49 +25,48 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Env string
+	Env string `validate:"required,oneof=development production staging"`
+}
+
+func (c *Config) IsProduction() bool {
+	return c.App.Env == EnvProd
 }
 
 /*
 - ServerConfig holds the global dependencies and configurations needed to start the server.
-
-- This struct in injected with things like DB connections, loggers, config, etc...
 */
 type ServerConfig struct {
-	Addr              string
-	Router            http.Handler
-	ReadTimeout       time.Duration
-	ReadHeaderTimeout time.Duration
-	WriteTimeout      time.Duration
-	IdleTimeout       time.Duration
+	Addr              string        `validate:"required,hostname_port"`
+	ReadTimeout       time.Duration `validate:"gt=0"`
+	ReadHeaderTimeout time.Duration `validate:"gt=0"`
+	WriteTimeout      time.Duration `validate:"gt=0"`
+	IdleTimeout       time.Duration `validate:"gt=0"`
 }
 
-func InitConfig() *Config {
-	loadEnv()
-
-	addr := mustGetString("ADDR", ":3333")
-	env := mustGetString("ENV", "development")
-	readTimeOut := mustGetInt("READ_TIMEOUT", 10)
-	readHeaderTimeout := mustGetInt("READ_HEADER_TIMEOUT", 5)
-	writeTimeout := mustGetInt("WRITE_TIMEOUT", 10)
-	idleTimeout := mustGetInt("IDLE_TIMEOUT", 60)
-
-	appCfg := AppConfig{
-		Env: env,
-	}
-
-	srvCfg := ServerConfig{
-		Addr:              addr,
-		ReadTimeout:       time.Second * time.Duration(readTimeOut),
-		ReadHeaderTimeout: time.Second * time.Duration(readHeaderTimeout),
-		WriteTimeout:      time.Second * time.Duration(writeTimeout),
-		IdleTimeout:       time.Second * time.Duration(idleTimeout),
-	}
-
+func InitConfig() (*Config, error) {
 	cfg := &Config{
-		App:          appCfg,
-		ServerConfig: srvCfg,
+		App: AppConfig{
+			Env: mustGetString("ENV", "development"),
+		},
+		ServerConfig: ServerConfig{
+			Addr:              mustGetString("ADDR", ":3333"),
+			ReadTimeout:       mustGetDuration("READ_TIMEOUT", defaultReadTimeout),
+			ReadHeaderTimeout: mustGetDuration("READ_HEADER_TIMEOUT", defaultReadHeaderTimeout),
+			WriteTimeout:      mustGetDuration("WRITE_TIMEOUT", defaultWriteTimeout),
+			IdleTimeout:       mustGetDuration("IDLE_TIMEOUT", defaultIdleTimeout),
+		},
 	}
 
-	return cfg
+	validate := validator.New()
+	if err := validate.Struct(cfg); err != nil {
+		var vErrs validator.ValidationErrors
+		if errors.As(err, &vErrs) {
+			for _, vErr := range vErrs {
+				log.Printf("⚠️ Config validation: Field '%s' failed '%s' tag", vErr.Field(), vErr.Tag())
+			}
+		}
+		return nil, fmt.Errorf("config validation failed: %w", err)
+	}
+
+	return cfg, nil
 }

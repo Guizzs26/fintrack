@@ -7,11 +7,19 @@ import (
 	"github.com/Guizzs26/fintrack/internal/config"
 )
 
+func init() {
+	if err := config.LoadEnv(); err != nil {
+		log.Fatalf("❌ Failed to load env: %v", err)
+	}
+}
+
 func main() {
-	cfg := config.InitConfig()
+	cfg, err := config.InitConfig()
+	if err != nil {
+		log.Fatalf("❌ Failed to initialize config: %v", err)
+	}
 
 	router := app.NewRouter()
-
 	srv := app.NewServer(cfg.ServerConfig, router)
 
 	if err := srv.ListenAndServe(); err != nil {
