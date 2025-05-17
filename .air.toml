@@ -1,0 +1,21 @@
+root = "."
+tmp_dir = "bin"
+testdata_dir = "testdata"
+
+[build]
+  cmd = "go build -o bin/fintrack.exe ./cmd/fintrack"
+  bin = "bin/fintrack.exe"
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  exclude_dir = ["assets", "bin", "vendor", "testdata", "web", "scripts", "docs"]
+  exclude_regex = ["_test.go"]
+  log = "build-errors.log"
+
+[color]
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[screen]
+  clear_on_rebuild = true
+  keep_scroll = true
