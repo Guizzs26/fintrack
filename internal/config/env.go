@@ -11,6 +11,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// LoadEnv loads environment variables from a .env file into the process.
+// Useful for development and local testing.
 func LoadEnv() error {
 	if err := godotenv.Load(); err != nil {
 		return err
@@ -20,6 +22,8 @@ func LoadEnv() error {
 	return nil
 }
 
+// getString tries to retrieve an environment variable as string,
+// falling back to a default value if not present.
 func getString(key, fallback string) (string, error) {
 	val, ok := os.LookupEnv(key)
 	if !ok || strings.TrimSpace(val) == "" {
@@ -32,6 +36,7 @@ func getString(key, fallback string) (string, error) {
 	return val, nil
 }
 
+// mustGetString returns a string from env or exits the app if the variable is invalid or missing.
 func mustGetString(key, fallback string) string {
 	val, err := getString(key, fallback)
 	if err != nil {
@@ -41,6 +46,8 @@ func mustGetString(key, fallback string) string {
 	return val
 }
 
+// getInt tries to retrieve an environment variable as integer,
+// falling back to a default value if not present or invalid.
 func getInt(key string, fallback int) (int, error) {
 	val, ok := os.LookupEnv(key)
 	if !ok || strings.TrimSpace(val) == "" {
@@ -55,6 +62,7 @@ func getInt(key string, fallback int) (int, error) {
 	return valAsInt, nil
 }
 
+// mustGetInt returns an integer from env or exits the app if the variable is invalid or missing.
 func mustGetInt(key string, fallback int) int {
 	val, err := getInt(key, fallback)
 	if err != nil {
@@ -64,6 +72,8 @@ func mustGetInt(key string, fallback int) int {
 	return val
 }
 
+// getBool tries to retrieve an environment variable as boolean,
+// falling back to a default value if not present or invalid.
 func getBool(key string, fallback bool) (bool, error) {
 	val, ok := os.LookupEnv(key)
 	if !ok || strings.TrimSpace(val) == "" {
@@ -78,6 +88,7 @@ func getBool(key string, fallback bool) (bool, error) {
 	return valAsBool, nil
 }
 
+// mustGetBool returns a boolean from env or exits the app if the variable is invalid or missing.
 func mustGetBool(key string, fallback bool) bool {
 	val, err := getBool(key, fallback)
 	if err != nil {
@@ -87,6 +98,9 @@ func mustGetBool(key string, fallback bool) bool {
 	return val
 }
 
+// getDuration tries to retrieve an environment variable as time.Duration,
+// falling back to a default value if not present or invalid.
+// Duration values should be in format accepted by time.ParseDuration (e.g., "1h", "10s").
 func getDuration(key string, fallback time.Duration) (time.Duration, error) {
 	valStr, ok := os.LookupEnv(key)
 	if !ok || strings.TrimSpace(valStr) == "" {
@@ -101,6 +115,7 @@ func getDuration(key string, fallback time.Duration) (time.Duration, error) {
 	return dur, nil
 }
 
+// mustGetDuration returns a time.Duration from env or exits the app if the variable is invalid or missing.
 func mustGetDuration(key string, fallback time.Duration) time.Duration {
 	val, err := getDuration(key, fallback)
 	if err != nil {
@@ -109,6 +124,7 @@ func mustGetDuration(key string, fallback time.Duration) time.Duration {
 	return val
 }
 
+// mustEnvOrPanic retrieves a required environment variable or panics if missing or empty.
 func mustEnvOrPanic(key string) string {
 	val := os.Getenv(key)
 	if strings.TrimSpace(val) == "" {

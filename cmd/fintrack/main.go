@@ -20,7 +20,7 @@ func main() {
 	}
 
 	router := app.NewRouter()
-	srv := app.NewServer(cfg.ServerConfig, router)
+	srv := app.NewServer(cfg.Server, router)
 
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
