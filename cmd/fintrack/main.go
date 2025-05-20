@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,19 +12,24 @@ import (
 	"github.com/Guizzs26/fintrack/internal/app"
 	"github.com/Guizzs26/fintrack/internal/config"
 	"github.com/Guizzs26/fintrack/internal/infra/db"
+	"github.com/Guizzs26/fintrack/pkg/logger"
 )
 
 func init() {
 	if err := config.LoadEnv(); err != nil {
-		log.Fatalf("❌ Failed to load env: %v", err)
+		panic("❌ Failed to load env: " + err.Error())
 	}
 }
 
 func main() {
 	cfg, err := config.InitConfig()
 	if err != nil {
-		log.Fatalf("❌ Failed to initialize config: %v", err)
+		panic("❌ Failed to initialize config: " + err.Error())
 	}
+
+	logger.Init(cfg.App.Env)
+
+	logger.L().Info("Starting application", "env", cfg.App.Env)
 
 	router := app.NewRouter()
 	srv := app.NewServer(cfg.Server, router)
@@ -33,19 +37,20 @@ func main() {
 	pg := db.NewPostgresConnection(cfg.DB)
 	defer func() {
 		if err := pg.Close(); err != nil {
-			log.Printf("⚠️ Error closing DB connection: %v", err)
+			logger.L().Error("Error closing DB connection", "error", err)
 		}
 	}()
 
 	// Start the HTTP server in a goroutine
 	go func() {
-		log.Printf("🚀 Server is running on %s", cfg.Server.Addr)
+		logger.L().Info("Server is running", "addr", cfg.Server.Addr)
 
 		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("❌ Unexpected server error: %v", err)
+			logger.L().Error("Unexpected server error", "error", err)
+			os.Exit(1)
 		}
 
-		log.Println("🛑 Stopped serving new connections")
+		logger.L().Info("Stopped serving new connections")
 	}()
 
 	// channel to listen for interrupt signals
@@ -54,14 +59,15 @@ func main() {
 
 	// wait for termination signal
 	sig := <-stop
-	log.Printf("Received signal: %s. Shutting down...", sig)
+	logger.L().Info("Received signal. Shutting down...", "signal", sig)
 
 	// create a context with timeout for graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("❌ Server forced to shutdown: %v", err)
+		logger.L().Error("Server forced to shutdown", "error", err)
+		os.Exit(1)
 	}
-	log.Println("✅ Server shutdown completed gracefully")
+	logger.L().Info("Server shutdown completed gracefully")
 }

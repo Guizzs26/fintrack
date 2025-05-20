@@ -3,10 +3,10 @@ package db
 import (
 	"context"
 	"database/sql"
-	"log"
 	"time"
 
 	"github.com/Guizzs26/fintrack/internal/config"
+	"github.com/Guizzs26/fintrack/pkg/logger"
 	_ "github.com/lib/pq"
 )
 
@@ -17,7 +17,7 @@ type Postgres struct {
 func NewPostgresConnection(cfg config.PostgresConfig) *Postgres {
 	db, err := sql.Open("postgres", cfg.DSN)
 	if err != nil {
-		log.Fatalf("❌ Failed to open PostgreSQL connection: %v", err)
+		logger.L().Error("Failed to open PostgreSQL connection", "error", err)
 	}
 
 	db.SetMaxOpenConns(cfg.MaxOpenConns)
@@ -28,14 +28,15 @@ func NewPostgresConnection(cfg config.PostgresConfig) *Postgres {
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
-		log.Fatalf("❌ Failed to ping PostgreSQL: %v", err)
+		logger.L().Error("Failed to ping PostgreSQL", "error", err)
+		panic(err)
 	}
 
-	log.Println("✅ Connected to PostgreSQL successfully")
+	logger.L().Info("Connected to PostgreSQL successfully")
 	return &Postgres{DB: db}
 }
 
 func (pg *Postgres) Close() error {
-	log.Println("🧯 Closing PostgreSQL connection")
+	logger.L().Info("Closing PostgreSQL connection")
 	return pg.DB.Close()
 }
