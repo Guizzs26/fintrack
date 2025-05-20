@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -38,6 +39,7 @@ func (c *Config) IsProduction() bool {
 
 // ServerConfig holds the global dependencies and configurations needed to start and manage the HTTP server
 type ServerConfig struct {
+	Handler           http.Handler
 	Addr              string        `validate:"required,hostname_port"`
 	ReadTimeout       time.Duration `validate:"gt=0"` // Max time the server waits to read the entire request (header + body)
 	ReadHeaderTimeout time.Duration `validate:"gt=0"` // Max time the server waits to read only the request headers
@@ -48,9 +50,9 @@ type ServerConfig struct {
 // PostgresConfig holds configuration for PostgreSQL connections. Useful to tune performance and connection pool behavior.
 type PostgresConfig struct {
 	DSN             string        `validate:"required"`
-	MaxOpenConns    int           `validate:"gte=1"`
-	MaxIdleConns    int           `validate:"gte=0"`
-	ConnMaxLifetime time.Duration `validate:"gte=0"`
+	MaxOpenConns    int           `validate:"gte=1"` // Max number of open connections (active or idle) that the pool can maintain with the db (includes connections currently in use and available in the pool for reuse)
+	MaxIdleConns    int           `validate:"gte=0"` // Max number of idle connections that remain in the cache, ready for reuse, i.e., how many idle connections in the pool can be waiting for the next request. Saves time and resources when creating new connections
+	ConnMaxLifetime time.Duration `validate:"gte=0"` // How long a connection can sit idle in the pool before it is automatically closed.
 }
 
 // InitConfig builds the full application configuration by reading environment variables.

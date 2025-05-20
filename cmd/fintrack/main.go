@@ -12,6 +12,7 @@ import (
 
 	"github.com/Guizzs26/fintrack/internal/app"
 	"github.com/Guizzs26/fintrack/internal/config"
+	"github.com/Guizzs26/fintrack/internal/infra/db"
 )
 
 func init() {
@@ -28,6 +29,13 @@ func main() {
 
 	router := app.NewRouter()
 	srv := app.NewServer(cfg.Server, router)
+
+	pg := db.NewPostgresConnection(cfg.DB)
+	defer func() {
+		if err := pg.Close(); err != nil {
+			log.Printf("⚠️ Error closing DB connection: %v", err)
+		}
+	}()
 
 	// Start the HTTP server in a goroutine
 	go func() {
