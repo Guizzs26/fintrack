@@ -29,25 +29,31 @@ func main() {
 	router := app.NewRouter()
 	srv := app.NewServer(cfg.Server, router)
 
+	// Start the HTTP server in a goroutine
 	go func() {
 		log.Printf("🚀 Server is running on %s", cfg.Server.Addr)
-		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("❌ HTTP server error: %v", err)
-		}
-		log.Println("Stopped serving new connections")
 
+		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("❌ Unexpected server error: %v", err)
+		}
+
+		log.Println("🛑 Stopped serving new connections")
 	}()
 
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
-	<-sc
-	log.Println("Shutting down server...")
+	// channel to listen for interrupt signals
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	shutdownCtx, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownRelease()
+	// wait for termination signal
+	sig := <-stop
+	log.Printf("Received signal: %s. Shutting down...", sig)
 
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("❌ HTTP shutdown error: %v", err)
+	// create a context with timeout for graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("❌ Server forced to shutdown: %v", err)
 	}
-	log.Println("Graceful shutdown complete")
+	log.Println("✅ Server shutdown completed gracefully")
 }

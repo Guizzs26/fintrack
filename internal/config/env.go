@@ -26,6 +26,7 @@ func LoadEnv() error {
 // falling back to a default value if not present.
 func getString(key, fallback string) (string, error) {
 	val, ok := os.LookupEnv(key)
+
 	if !ok || strings.TrimSpace(val) == "" {
 		if strings.TrimSpace(fallback) == "" {
 			return "", fmt.Errorf("missing or empty environment variable '%s' and fallback value is also empty", key)
@@ -50,6 +51,7 @@ func mustGetString(key, fallback string) string {
 // falling back to a default value if not present or invalid.
 func getInt(key string, fallback int) (int, error) {
 	val, ok := os.LookupEnv(key)
+
 	if !ok || strings.TrimSpace(val) == "" {
 		return fallback, nil
 	}
@@ -76,6 +78,7 @@ func mustGetInt(key string, fallback int) int {
 // falling back to a default value if not present or invalid.
 func getBool(key string, fallback bool) (bool, error) {
 	val, ok := os.LookupEnv(key)
+
 	if !ok || strings.TrimSpace(val) == "" {
 		return fallback, nil
 	}
@@ -103,6 +106,7 @@ func mustGetBool(key string, fallback bool) bool {
 // Duration values should be in format accepted by time.ParseDuration (e.g., "1h", "10s").
 func getDuration(key string, fallback time.Duration) (time.Duration, error) {
 	valStr, ok := os.LookupEnv(key)
+
 	if !ok || strings.TrimSpace(valStr) == "" {
 		return fallback, nil
 	}
@@ -121,14 +125,17 @@ func mustGetDuration(key string, fallback time.Duration) time.Duration {
 	if err != nil {
 		log.Fatalf("❌ %v", err)
 	}
+
 	return val
 }
 
 // mustEnvOrPanic retrieves a required environment variable or panics if missing or empty.
 func mustEnvOrPanic(key string) string {
 	val := os.Getenv(key)
+
 	if strings.TrimSpace(val) == "" {
 		log.Fatalf("❌ Required environment variable '%s' is missing or empty", key)
 	}
+
 	return val
 }
