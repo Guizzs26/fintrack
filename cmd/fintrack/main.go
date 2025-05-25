@@ -26,13 +26,7 @@ func main() {
 	if err != nil {
 		panic("❌ Failed to initialize config: " + err.Error())
 	}
-
 	logger.Init(cfg.App.Env)
-
-	logger.L().Info("Starting application", "env", cfg.App.Env)
-
-	router := app.NewRouter()
-	srv := app.NewServer(cfg.Server, router)
 
 	pg := db.NewPostgresConnection(cfg.DB)
 	defer func() {
@@ -40,6 +34,10 @@ func main() {
 			logger.L().Error("Error closing DB connection", "error", err)
 		}
 	}()
+
+	logger.L().Info("Starting application", "env", cfg.App.Env)
+	router := app.NewRouter(pg)
+	srv := app.NewServer(cfg.Server, router)
 
 	// Start the HTTP server in a goroutine
 	go func() {
