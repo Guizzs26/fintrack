@@ -1,0 +1,35 @@
+# Build files
+*.out
+*.exe
+*.dll
+*.so
+*.a
+
+# Main application binary (important!)
+axon.exe
+
+# Temporary files and tools
+/tmp
+/vendor/
+
+# Log files
+*.log
+
+# Environment configuration files (NEVER commit secrets!)
+*.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Test coverage files
+coverage.out
+coverage.html

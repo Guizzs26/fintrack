@@ -1,0 +1,35 @@
+services:
+  pg_fintrack:
+    image: postgres:17.6
+    container_name: pg_fintrack
+    restart: on-failure
+    env_file: .env
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DATABASE=${DB_NAME}
+    ports:
+      - '${DB_PORT}:5432'
+    volumes:
+      - fintrack_data:/var/lib/postgresql/data
+    networks:
+      - fintrack_network
+    healthcheck:
+      test: [
+        'CMD-SHELL', 
+        "psql -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1' || exit 1"
+      ]
+      interval: 10s
+      timeout: 15s
+      retries: 5
+    logging:
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  fintrack_data:
+
+networks:
+  fintrack_network:
+    
