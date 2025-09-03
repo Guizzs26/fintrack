@@ -10,7 +10,25 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	ErrAccountArchived          = errors.New("account is already archived")
+	ErrAccountNotArchived       = errors.New("account is not archived")
+	ErrTransactionNotFound      = errors.New("transaction not found in this account")
+	ErrTransactionAlreadyPaid   = errors.New("transaction is already marked as paid")
+	ErrTransactionAlreadyUnpaid = errors.New("transaction is already marked as unpaid")
+	ErrPaymentDateInFuture      = errors.New("payment date cannot be in the future")
+	ErrAmountCannotBeZero       = errors.New("transaction amount cannot be zero")
+	ErrDescriptionRequired      = errors.New("transaction description is required")
+	ErrAccountNameRequired      = errors.New("account name is required")
+	ErrInconsistentAmountSign   = errors.New("transaction amount sign is inconsistent with its type")
+	ErrInvalidTransactionType   = errors.New("invalid transaction type")
+)
+
 const (
+	Income     TransactionType = "INCOME"
+	Expense    TransactionType = "EXPENSE"
+	Adjustment TransactionType = "ADJUSTMENT"
+
 	maxAccountNameLength            = 100
 	maxTransactionDescriptionLength = 100
 	maxTransactionObservationLength = 2500
@@ -18,12 +36,6 @@ const (
 
 // TransactionType represents the type of a financial transaction
 type TransactionType string
-
-const (
-	Income     TransactionType = "INCOME"
-	Expense    TransactionType = "EXPENSE"
-	Adjustment TransactionType = "ADJUSTMENT"
-)
 
 // Transaction represents a single financial entry in an account
 type Transaction struct {
@@ -49,7 +61,7 @@ type Account struct {
 // It returns an error if the name is empty or exceeds the maximum length
 func NewAccount(userID uuid.UUID, name string) (*Account, error) {
 	if strings.TrimSpace(name) == "" {
-		return nil, errors.New("account name cannot be empty")
+		return nil, ErrAccountNameRequired
 	}
 	if len(name) > maxAccountNameLength {
 		return nil, fmt.Errorf("account name cannot exceed %d characters", maxAccountNameLength)
@@ -67,11 +79,11 @@ func NewAccount(userID uuid.UUID, name string) (*Account, error) {
 // It returns an error if the transaction amount is zero
 func (a *Account) AddTransaction(txType TransactionType, description, observation string, amount int64, dueDate time.Time, paidAt *time.Time) error {
 	if a.ArchivedAt != nil {
-		return errors.New("cannot add a transaction to an archived account")
+		return ErrAccountArchived
 	}
 
 	if strings.TrimSpace(description) == "" {
-		return errors.New("transaction description cannot be empty")
+		return ErrDescriptionRequired
 	}
 	if len(description) > maxTransactionDescriptionLength {
 		return fmt.Errorf("transaction description cannot exceed %d characters", maxTransactionDescriptionLength)
@@ -84,24 +96,24 @@ func (a *Account) AddTransaction(txType TransactionType, description, observatio
 	}
 
 	if amount == 0 {
-		return errors.New("transaction amount cannot be zero")
+		return ErrAmountCannotBeZero
 	}
 
 	switch txType {
 	case Income, Expense, Adjustment:
 		// valid type
 	default:
-		return fmt.Errorf("invalid transaction type: %s", txType)
+		return ErrInvalidTransactionType
 	}
 
 	isIncome := txType == Income
 	isExpense := txType == Expense
 	if (isIncome && amount < 0) || (isExpense && amount > 0) {
-		return fmt.Errorf("transaction amount sign is inconsistent: got %d for type %s", amount, txType)
+		return ErrInconsistentAmountSign
 	}
 
 	if paidAt != nil && paidAt.After(time.Now()) {
-		return errors.New("transaction payment date cannot be in the future")
+		return ErrPaymentDateInFuture
 	}
 
 	tx := Transaction{
@@ -121,20 +133,19 @@ func (a *Account) AddTransaction(txType TransactionType, description, observatio
 
 func (a *Account) DeleteTransaction(txID uuid.UUID) error {
 	if a.ArchivedAt != nil {
-		return errors.New("cannot modify an archived account")
+		return ErrAccountArchived
 	}
 
 	foundIndex := -1
 	for i, tx := range a.transactions {
 		if tx.ID == txID {
-			fmt.Println("Verificando o index:", i)
 			foundIndex = i
 			break
 		}
 	}
 
 	if foundIndex == -1 {
-		return errors.New("transaction not found in this account")
+		return ErrTransactionNotFound
 	}
 
 	a.transactions = append(a.transactions[:foundIndex], a.transactions[foundIndex+1:]...)
@@ -152,29 +163,20 @@ func (a *Account) Balance() int64 {
 
 func (a *Account) MarkTransactionAsPaid(txID uuid.UUID, paidAt time.Time) error {
 	if a.ArchivedAt != nil {
-		return errors.New("cannot modify an archived account")
+		return ErrAccountArchived
 	}
 
 	if paidAt.After(time.Now()) {
-		return errors.New("payment date cannot be in the future")
+		return ErrPaymentDateInFuture
 	}
 
-	var target *Transaction
-	found := false
-	for i := range a.transactions {
-		if a.transactions[i].ID == txID {
-			target = &a.transactions[i]
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return errors.New("transaction not found in this account")
+	target, err := a.findTransaction(txID)
+	if err != nil {
+		return err
 	}
 
 	if target.PaidAt != nil {
-		return errors.New("transaction is already marked as paid")
+		return ErrTransactionAlreadyPaid
 	}
 
 	target.PaidAt = &paidAt
@@ -184,25 +186,16 @@ func (a *Account) MarkTransactionAsPaid(txID uuid.UUID, paidAt time.Time) error 
 
 func (a *Account) MarkTransactionAsUnpaid(txID uuid.UUID) error {
 	if a.ArchivedAt != nil {
-		return errors.New("cannot modify an archived account")
+		return ErrAccountArchived
 	}
 
-	var target *Transaction
-	found := false
-	for i := range a.transactions {
-		if a.transactions[i].ID == txID {
-			target = &a.transactions[i]
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return errors.New("transaction not found in this account")
+	target, err := a.findTransaction(txID)
+	if err != nil {
+		return err
 	}
 
 	if target.PaidAt == nil {
-		return errors.New("transaction is already marked as unpaid")
+		return ErrTransactionAlreadyUnpaid
 	}
 
 	target.PaidAt = nil
@@ -212,7 +205,7 @@ func (a *Account) MarkTransactionAsUnpaid(txID uuid.UUID) error {
 
 func (a *Account) Archive() error {
 	if a.ArchivedAt != nil {
-		return errors.New("account is already archived")
+		return ErrAccountArchived
 	}
 
 	now := time.Now()
@@ -223,10 +216,19 @@ func (a *Account) Archive() error {
 
 func (a *Account) Unarchive() error {
 	if a.ArchivedAt == nil {
-		return errors.New("account is not archived")
+		return ErrAccountNotArchived
 	}
 
 	a.ArchivedAt = nil
 
 	return nil
+}
+
+func (a *Account) findTransaction(txID uuid.UUID) (*Transaction, error) {
+	for i := range a.transactions {
+		if txID == a.transactions[i].ID {
+			return &a.transactions[i], nil
+		}
+	}
+	return nil, ErrTransactionNotFound
 }
