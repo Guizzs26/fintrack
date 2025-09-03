@@ -232,3 +232,30 @@ func (a *Account) findTransaction(txID uuid.UUID) (*Transaction, error) {
 	}
 	return nil, ErrTransactionNotFound
 }
+
+func (a *Account) Transactions() []Transaction {
+	txCopy := make([]Transaction, len(a.transactions))
+	copy(txCopy, a.transactions)
+	return txCopy
+}
+
+func (a *Account) GetID() uuid.UUID {
+	return a.ID
+}
+
+func (a *Account) GetUserID() uuid.UUID {
+	return a.UserID
+}
+
+func (a *Account) GetName() string {
+	return a.Name
+}
+
+func (a *Account) GetArchivedAt() *time.Time {
+	if a.ArchivedAt == nil {
+		return nil
+	}
+
+	archivedCopy := *a.ArchivedAt
+	return &archivedCopy
+}
