@@ -52,6 +52,6 @@ func NewPostgresConnection(ctx context.Context, cfg config.Config) (*Postgres, e
 func (p *Postgres) Close() {
 	if p.Pool != nil {
 		p.Pool.Close()
-		log.Printf("🔌 Postgres connection pool closed\n")
+		log.Printf("Postgres connection pool closed\n")
 	}
 }
