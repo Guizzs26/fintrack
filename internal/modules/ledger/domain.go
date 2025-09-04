@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Guizzs26/fintrack/internal/modules/pkg/clock"
 	"github.com/google/uuid"
 )
 
@@ -152,8 +153,29 @@ func (a *Account) DeleteTransaction(txID uuid.UUID) error {
 	return nil
 }
 
-// Balance calculates the total amount of all transactions in the account
-func (a *Account) Balance() int64 {
+// Real Balance calculates the "real" balance of the account
+// Adds only the transactions that have already been paid/completed to date
+// Represents the amount of money the user actually has
+func (a *Account) RealBalance(clock clock.Clock) int64 {
+	var total int64 = 0
+	now := clock.Now()
+	for _, tx := range a.transactions {
+		/*
+		 The transaction only appears in the real balance if:
+		 		1. The PaidAt field is not null
+		  	2. The payment date is not in the future
+		*/
+		if tx.PaidAt != nil && !tx.PaidAt.After(now) {
+			total += tx.Amount
+		}
+	}
+	return total
+}
+
+// ProjectedBalance calculates the "projected" or "net" balance
+// It adds up ALL transactions, paid and pending
+// Represents the "net value" of the account, considering all future commitments
+func (a *Account) ProjectedBalance() int64 {
 	var total int64 = 0
 	for _, tx := range a.transactions {
 		total += tx.Amount
@@ -233,21 +255,6 @@ func (a *Account) Transactions() []Transaction {
 	txCopy := make([]Transaction, len(a.transactions))
 	copy(txCopy, a.transactions)
 	return txCopy
-}
-
-// GetID returns the account ID
-func (a *Account) GetID() uuid.UUID {
-	return a.ID
-}
-
-// GetUserID returns the user ID associated with the account
-func (a *Account) GetUserID() uuid.UUID {
-	return a.UserID
-}
-
-// GetName returns the account name
-func (a *Account) GetName() string {
-	return a.Name
 }
 
 // GetArchivedAt returns the timestamp when the account was archived
