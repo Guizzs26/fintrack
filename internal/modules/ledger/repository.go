@@ -13,6 +13,8 @@ import (
 
 var _ AccountRepository = (*PostgresAccountRepository)(nil)
 
+// ----- Main struct repository and Querier ----- //
+
 type PostgresAccountRepository struct {
 	pool *pgxpool.Pool
 }
@@ -81,7 +83,7 @@ type transactionModel struct {
 	ID          uuid.UUID       `db:"id"`
 	AccountID   uuid.UUID       `db:"account_id"`
 	UserID      uuid.UUID       `db:"user_id"`
-	CategoryID  uuid.UUID       `db:"category_id"`
+	CategoryID  *uuid.UUID      `db:"category_id"`
 	Type        TransactionType `db:"type"`
 	Description string          `db:"description"`
 	Observation string          `db:"observation"`

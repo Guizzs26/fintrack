@@ -46,7 +46,7 @@ type AccountRepository interface {
 // Transaction represents a single financial entry in an account
 type Transaction struct {
 	ID          uuid.UUID
-	CategoryID  uuid.UUID
+	CategoryID  *uuid.UUID
 	Type        TransactionType
 	Description string
 	Observation string
@@ -243,6 +243,7 @@ func (a *Account) Archive(clock clock.Clock) error {
 
 	now := clock.Now()
 	a.ArchivedAt = &now
+	a.IncludeInOverallBalance = false
 
 	return nil
 }
@@ -254,6 +255,35 @@ func (a *Account) Unarchive() error {
 	}
 
 	a.ArchivedAt = nil
+	a.IncludeInOverallBalance = true
+
+	return nil
+}
+
+func (a *Account) IncludeAtOverallBalance() error {
+	if a.ArchivedAt != nil {
+		return ErrAccountArchived
+	}
+
+	if a.IncludeInOverallBalance {
+		return errors.New("account is already included in overall balance")
+	}
+
+	a.IncludeInOverallBalance = true
+
+	return nil
+}
+
+func (a *Account) ExcludeFromOverallBalance() error {
+	if a.ArchivedAt != nil {
+		return ErrAccountArchived
+	}
+
+	if !a.IncludeInOverallBalance {
+		return errors.New("account is already excluded from overall balance")
+	}
+
+	a.IncludeInOverallBalance = false
 
 	return nil
 }
