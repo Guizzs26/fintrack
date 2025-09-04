@@ -20,14 +20,17 @@ var (
 
 // ----- Main struct repository and Querier ----- //
 
+// PostgresAccountRepository is a PostgreSQL implementation of the AccountRepository interface defined by the domain layer
 type PostgresAccountRepository struct {
 	pool *pgxpool.Pool
 }
 
+// NewPostgresAccountRepository creates a new PostgresAccountRepository
 func NewPostgresAccountRepository(pool *pgxpool.Pool) *PostgresAccountRepository {
 	return &PostgresAccountRepository{pool: pool}
 }
 
+// ExecTx executes a function within a database transaction
 func (par *PostgresAccountRepository) ExecTx(ctx context.Context, fn func(q *Querier) error) error {
 	tx, err := par.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -50,13 +53,14 @@ func (par *PostgresAccountRepository) ExecTx(ctx context.Context, fn func(q *Que
 	return nil
 }
 
+// Querier returns a new Querier instance that uses the repository's connection pool
 func (par *PostgresAccountRepository) Querier() *Querier {
 	return NewQuerier(par.pool)
 }
 
 // DBQuerier is an interface that is satisfied by both *pgxpool.Pool and pgx.Tx
 // This allows our query methods to be used both inside and outside of a transaction
-// without any changes to the method signatures.
+// without any changes to the method signatures
 type DBQuerier interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -64,16 +68,19 @@ type DBQuerier interface {
 	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
 }
 
+// Querier holds a DBQuerier interface, allowing it to execute SQL queries
 type Querier struct {
 	db DBQuerier
 }
 
+// NewQuerier creates a new Querier
 func NewQuerier(db DBQuerier) *Querier {
 	return &Querier{db: db}
 }
 
 // ----- MODELS ----- //
 
+// accountModel represents the account structure in the database
 type accountModel struct {
 	ID                      uuid.UUID  `db:"id"`
 	UserID                  uuid.UUID  `db:"user_id"`
@@ -84,6 +91,7 @@ type accountModel struct {
 	UpdatedAt               time.Time  `db:"updated_at"`
 }
 
+// transactionModel represents the transaction structure in the database
 type transactionModel struct {
 	ID          uuid.UUID       `db:"id"`
 	AccountID   uuid.UUID       `db:"account_id"`
@@ -102,6 +110,7 @@ type transactionModel struct {
 
 // ----- MAPPERS ----- //
 
+// toAccountPersistence maps a domain Account to its persistence model
 func toAccountPersistence(a *Account) *accountModel {
 	return &accountModel{
 		ID:                      a.ID,
@@ -112,6 +121,7 @@ func toAccountPersistence(a *Account) *accountModel {
 	}
 }
 
+// toTransactionPersistence maps a domain Transaction to its persistence model
 func toTransactionPersistence(tx *Transaction, accountID, userID uuid.UUID) *transactionModel {
 	return &transactionModel{
 		ID:          tx.ID,
@@ -128,6 +138,7 @@ func toTransactionPersistence(tx *Transaction, accountID, userID uuid.UUID) *tra
 	}
 }
 
+// toAccountDomain maps a persistence accountModel and its transactions to a domain Account
 func toAccountDomain(m *accountModel, txsModels []transactionModel) *Account {
 	domainTx := make([]Transaction, len(txsModels))
 	for i, txm := range txsModels {
@@ -146,6 +157,7 @@ func toAccountDomain(m *accountModel, txsModels []transactionModel) *Account {
 	}
 }
 
+// toTransactionDomain maps a persistence transactionModel to a domain Transaction
 func toTransactionDomain(m *transactionModel) *Transaction {
 	return &Transaction{
 		ID:          m.ID,
@@ -160,6 +172,9 @@ func toTransactionDomain(m *transactionModel) *Transaction {
 
 // ----- Repository Methods ----- //
 
+// Save persists the entire Account aggregate. It operates transactionally,
+// first upserting the account, then deleting all existing transactions for that account,
+// and finally bulk-inserting the current transactions from the aggregate
 func (par *PostgresAccountRepository) Save(ctx context.Context, account *Account) error {
 	return par.ExecTx(ctx, func(q *Querier) error {
 		accModel := toAccountPersistence(account)
@@ -180,6 +195,8 @@ func (par *PostgresAccountRepository) Save(ctx context.Context, account *Account
 	})
 }
 
+// FindByID retrieves an Account aggregate by its ID. It first fetches the account
+// and then all its associated transactions, reconstructing the full domain aggregate
 func (par *PostgresAccountRepository) FindByID(ctx context.Context, accountID uuid.UUID) (*Account, error) {
 	q := par.Querier()
 
@@ -203,6 +220,8 @@ func (par *PostgresAccountRepository) FindByID(ctx context.Context, accountID uu
 
 // ----- Querier Methods ----- //
 
+// upsertAccount inserts a new account or updates an existing one based on its ID
+// It uses the 'ON CONFLICT' clause to perform an update if the account already exists
 func (q *Querier) upsertAccount(ctx context.Context, accountModel *accountModel) error {
 	query := `
 		INSERT INTO accounts (
@@ -235,6 +254,7 @@ func (q *Querier) upsertAccount(ctx context.Context, accountModel *accountModel)
 	return nil
 }
 
+// deleteTransactionsForAccount deletes all transactions associated with a given account ID
 func (q *Querier) deleteTransactionsForAccount(ctx context.Context, accountID uuid.UUID) error {
 	query := `DELETE FROM transactions WHERE account_id = $1`
 
@@ -246,6 +266,7 @@ func (q *Querier) deleteTransactionsForAccount(ctx context.Context, accountID uu
 	return nil
 }
 
+// bulkInsertTransactions efficiently inserts a slice of transactions in a single batch operation
 func (q *Querier) bulkInsertTransactions(ctx context.Context, accountID, userID uuid.UUID, transactions []Transaction) error {
 	if len(transactions) == 0 {
 		return nil
@@ -285,6 +306,7 @@ func (q *Querier) bulkInsertTransactions(ctx context.Context, accountID, userID 
 	return nil
 }
 
+// getAccountByID retrieves a single account from the database by its ID
 func (q *Querier) getAccountByID(ctx context.Context, accountID uuid.UUID) (*accountModel, error) {
 	query := `
 		SELECT id, user_id, name, include_in_overall_balance, archived_at, created_at, updated_at
@@ -309,10 +331,12 @@ func (q *Querier) getAccountByID(ctx context.Context, accountID uuid.UUID) (*acc
 	return &m, nil
 }
 
+// getTransactionsByAccountID retrieves all transactions for a given account ID
 func (q *Querier) getTransactionsByAccountID(ctx context.Context, accountID uuid.UUID) ([]transactionModel, error) {
 	query := `
 		SELECT id, account_id, user_id, category_id, type, description, 
-			observation, amount_in_cents, due_date, paid_at
+			observation, amount_in_cents, due_date, metadata, paid_at,
+			created_at, updated_at
 		FROM transactions
 		WHERE account_id = $1
 		ORDER BY due_date ASC
@@ -338,6 +362,9 @@ func (q *Querier) getTransactionsByAccountID(ctx context.Context, accountID uuid
 			&m.Amount,
 			&m.DueDate,
 			&m.PaidAt,
+			&m.Metadata,
+			&m.CreatedAt,
+			&m.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("repository: failed to scan transaction row: %v", err)
 		}

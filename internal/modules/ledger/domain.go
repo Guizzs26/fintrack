@@ -24,6 +24,8 @@ var (
 	ErrAccountNameRequired      = errors.New("account name is required")
 	ErrInconsistentAmountSign   = errors.New("transaction amount sign is inconsistent with its type")
 	ErrInvalidTransactionType   = errors.New("invalid transaction type")
+	ErrAccountAlreadyIncluded   = errors.New("account is already included in overall balance")
+	ErrAccountAlreadyExcluded   = errors.New("account is already excluded from overall balance")
 )
 
 const (
@@ -260,13 +262,14 @@ func (a *Account) Unarchive() error {
 	return nil
 }
 
+// IncludeInOverallBalance sets the account to be included in overall balance calculations
 func (a *Account) IncludeAtOverallBalance() error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
 	}
 
 	if a.IncludeInOverallBalance {
-		return errors.New("account is already included in overall balance")
+		return ErrAccountAlreadyIncluded
 	}
 
 	a.IncludeInOverallBalance = true
@@ -274,13 +277,14 @@ func (a *Account) IncludeAtOverallBalance() error {
 	return nil
 }
 
+// ExcludeFromOverallBalance removes the account from overall balance calculations
 func (a *Account) ExcludeFromOverallBalance() error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
 	}
 
 	if !a.IncludeInOverallBalance {
-		return errors.New("account is already excluded from overall balance")
+		return ErrAccountAlreadyExcluded
 	}
 
 	a.IncludeInOverallBalance = false
