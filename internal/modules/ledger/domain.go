@@ -58,7 +58,6 @@ type Account struct {
 }
 
 // NewAccount creates a new Account with the given user ID and name
-// It returns an error if the name is empty or exceeds the maximum length
 func NewAccount(userID uuid.UUID, name string) (*Account, error) {
 	if strings.TrimSpace(name) == "" {
 		return nil, ErrAccountNameRequired
@@ -76,7 +75,6 @@ func NewAccount(userID uuid.UUID, name string) (*Account, error) {
 }
 
 // AddTransaction adds a new transaction to the account
-// It returns an error if the transaction amount is zero
 func (a *Account) AddTransaction(txType TransactionType, description, observation string, amount int64, dueDate time.Time, paidAt *time.Time) error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
@@ -131,6 +129,7 @@ func (a *Account) AddTransaction(txType TransactionType, description, observatio
 	return nil
 }
 
+// DeleteTransaction removes a transaction from the account by its ID
 func (a *Account) DeleteTransaction(txID uuid.UUID) error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
@@ -153,6 +152,7 @@ func (a *Account) DeleteTransaction(txID uuid.UUID) error {
 	return nil
 }
 
+// Balance calculates the total amount of all transactions in the account
 func (a *Account) Balance() int64 {
 	var total int64 = 0
 	for _, tx := range a.transactions {
@@ -161,6 +161,7 @@ func (a *Account) Balance() int64 {
 	return total
 }
 
+// MarkTransactionAsPaid marks a specific transaction as paid at a given time
 func (a *Account) MarkTransactionAsPaid(txID uuid.UUID, paidAt time.Time) error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
@@ -184,6 +185,7 @@ func (a *Account) MarkTransactionAsPaid(txID uuid.UUID, paidAt time.Time) error 
 	return nil
 }
 
+// MarkTransactionAsUnpaid marks a specific transaction as unpaid
 func (a *Account) MarkTransactionAsUnpaid(txID uuid.UUID) error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
@@ -203,6 +205,7 @@ func (a *Account) MarkTransactionAsUnpaid(txID uuid.UUID) error {
 	return nil
 }
 
+// Archive marks the account as archived, preventing new modifications
 func (a *Account) Archive() error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
@@ -214,6 +217,7 @@ func (a *Account) Archive() error {
 	return nil
 }
 
+// Unarchive removes the archived status from the account
 func (a *Account) Unarchive() error {
 	if a.ArchivedAt == nil {
 		return ErrAccountNotArchived
@@ -224,33 +228,29 @@ func (a *Account) Unarchive() error {
 	return nil
 }
 
-func (a *Account) findTransaction(txID uuid.UUID) (*Transaction, error) {
-	for i := range a.transactions {
-		if txID == a.transactions[i].ID {
-			return &a.transactions[i], nil
-		}
-	}
-	return nil, ErrTransactionNotFound
-}
-
+// Transactions returns a copy of the account's transactions
 func (a *Account) Transactions() []Transaction {
 	txCopy := make([]Transaction, len(a.transactions))
 	copy(txCopy, a.transactions)
 	return txCopy
 }
 
+// GetID returns the account ID
 func (a *Account) GetID() uuid.UUID {
 	return a.ID
 }
 
+// GetUserID returns the user ID associated with the account
 func (a *Account) GetUserID() uuid.UUID {
 	return a.UserID
 }
 
+// GetName returns the account name
 func (a *Account) GetName() string {
 	return a.Name
 }
 
+// GetArchivedAt returns the timestamp when the account was archived
 func (a *Account) GetArchivedAt() *time.Time {
 	if a.ArchivedAt == nil {
 		return nil
@@ -258,4 +258,14 @@ func (a *Account) GetArchivedAt() *time.Time {
 
 	archivedCopy := *a.ArchivedAt
 	return &archivedCopy
+}
+
+// findTransaction finds a transaction by its ID within the account
+func (a *Account) findTransaction(txID uuid.UUID) (*Transaction, error) {
+	for i := range a.transactions {
+		if txID == a.transactions[i].ID {
+			return &a.transactions[i], nil
+		}
+	}
+	return nil, ErrTransactionNotFound
 }
