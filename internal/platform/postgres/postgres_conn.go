@@ -45,7 +45,7 @@ func NewPostgresConnection(ctx context.Context, cfg config.Config) (*Postgres, e
 		return nil, fmt.Errorf("failed to ping postgres: %w", err)
 	}
 
-	log.Printf("✅ Postgres connection pool established successfully\n")
+	log.Printf("✅ Postgres connection pool established successfully")
 	return &Postgres{Pool: pool}, nil
 }
 

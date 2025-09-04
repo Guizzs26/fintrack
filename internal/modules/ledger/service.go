@@ -36,8 +36,8 @@ func NewLedgerService(accRepo AccountRepository, clock clock.Clock) *Service {
 }
 
 // CreateAccount is the use case for creating a new account
-func (s *Service) CreateAccount(ctx context.Context, userID uuid.UUID, name string) (*Account, error) {
-	account, err := NewAccount(userID, name)
+func (s *Service) CreateAccount(ctx context.Context, userID uuid.UUID, name string, includeInBalance bool) (*Account, error) {
+	account, err := NewAccount(userID, name, includeInBalance)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *Service) AddTransactionToAccount(ctx context.Context, params AddTransac
 		return err
 	}
 
-	// Enforce authorization rule: user can only modify their own account (FUTURE AUTHn/AUTHZ)
+	// Enforce authorization rule: user can only modify their own account (FUTURE AUTHn/AUTHz)
 	if account.UserID != params.UserID {
 		return errors.New("user does not have permission to access this account")
 	}

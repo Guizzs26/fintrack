@@ -69,7 +69,7 @@ type Account struct {
 }
 
 // NewAccount creates a new Account with the given user ID and name
-func NewAccount(userID uuid.UUID, name string) (*Account, error) {
+func NewAccount(userID uuid.UUID, name string, includeInBalance bool) (*Account, error) {
 	if strings.TrimSpace(name) == "" {
 		return nil, ErrAccountNameRequired
 	}
@@ -81,7 +81,7 @@ func NewAccount(userID uuid.UUID, name string) (*Account, error) {
 		ID:                      uuid.New(),
 		UserID:                  userID,
 		Name:                    name,
-		IncludeInOverallBalance: true,
+		IncludeInOverallBalance: includeInBalance,
 		transactions:            make([]Transaction, 0),
 	}, nil
 }

@@ -7,12 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Guizzs26/fintrack/internal/modules/ledger"
+	"github.com/Guizzs26/fintrack/internal/modules/pkg/clock"
 	"github.com/Guizzs26/fintrack/internal/platform/config"
 	"github.com/Guizzs26/fintrack/internal/platform/postgres"
 	"github.com/labstack/echo/v4"
 )
-
-const MockUserID = ""
 
 func main() {
 	ctx := context.Background()
@@ -35,13 +35,21 @@ func run(ctx context.Context, cfg *config.Config) error {
 
 	e := echo.New()
 
-	pg, err := postgres.NewPostgresConnection(ctx, *cfg)
+	pgConn, err := postgres.NewPostgresConnection(ctx, *cfg)
 	if err != nil {
 		return err
 	}
-	defer pg.Close()
+	defer pgConn.Close()
+
+	clock := clock.SystemClock{}
+
+	// ----- Ledger module dependencies ----- //
+	accountRepo := ledger.NewPostgresAccountRepository(pgConn.Pool)
+	ledgerSvc := ledger.NewLedgerService(accountRepo, clock)
+	ledgerHandler := ledger.NewLedgerHandler(ledgerSvc)
+
+	ledgerHandler.RegisterRoutes(e)
 
 	e.Logger.Fatal(e.Start(":9999"))
-
 	return nil
 }

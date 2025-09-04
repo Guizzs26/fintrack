@@ -8,6 +8,6 @@ type Clock interface {
 
 type SystemClock struct{}
 
-func (sc *SystemClock) Now() time.Time {
+func (sc SystemClock) Now() time.Time {
 	return time.Now()
 }
