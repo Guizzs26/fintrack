@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 )
 
 var _ AccountRepository = (*PostgresAccountRepository)(nil)
+
+var (
+	ErrAccountNotFound = errors.New("account not found in database")
+)
 
 // ----- Main struct repository and Querier ----- //
 
@@ -175,6 +180,27 @@ func (par *PostgresAccountRepository) Save(ctx context.Context, account *Account
 	})
 }
 
+func (par *PostgresAccountRepository) FindByID(ctx context.Context, accountID uuid.UUID) (*Account, error) {
+	q := par.Querier()
+
+	accModel, err := q.getAccountByID(ctx, accountID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrAccountNotFound
+		}
+		return nil, err
+	}
+
+	txModels, err := q.getTransactionsByAccountID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	account := toAccountDomain(accModel, txModels)
+
+	return account, nil
+}
+
 // ----- Querier Methods ----- //
 
 func (q *Querier) upsertAccount(ctx context.Context, accountModel *accountModel) error {
@@ -257,4 +283,69 @@ func (q *Querier) bulkInsertTransactions(ctx context.Context, accountID, userID 
 	}
 
 	return nil
+}
+
+func (q *Querier) getAccountByID(ctx context.Context, accountID uuid.UUID) (*accountModel, error) {
+	query := `
+		SELECT id, user_id, name, include_in_overall_balance, archived_at, created_at, updated_at
+		FROM accounts
+		WHERE id = $1
+	`
+
+	var m accountModel
+	err := q.db.QueryRow(ctx, query, accountID).Scan(
+		&m.ID,
+		&m.UserID,
+		&m.Name,
+		&m.IncludeInOverallBalance,
+		&m.ArchivedAt,
+		&m.CreatedAt,
+		&m.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &m, nil
+}
+
+func (q *Querier) getTransactionsByAccountID(ctx context.Context, accountID uuid.UUID) ([]transactionModel, error) {
+	query := `
+		SELECT id, account_id, user_id, category_id, type, description, 
+			observation, amount_in_cents, due_date, paid_at
+		FROM transactions
+		WHERE account_id = $1
+		ORDER BY due_date ASC
+	`
+
+	rows, err := q.db.Query(ctx, query, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("repository: failed to query transactions: %v", err)
+	}
+	defer rows.Close()
+
+	var transactions []transactionModel
+	for rows.Next() {
+		var m transactionModel
+		if err := rows.Scan(
+			&m.ID,
+			&m.AccountID,
+			&m.UserID,
+			&m.CategoryID,
+			&m.Type,
+			&m.Description,
+			&m.Observation,
+			&m.Amount,
+			&m.DueDate,
+			&m.PaidAt,
+		); err != nil {
+			return nil, fmt.Errorf("repository: failed to scan transaction row: %v", err)
+		}
+		transactions = append(transactions, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("repository: error iterating transaction rows: %v", err)
+	}
+
+	return transactions, nil
 }
