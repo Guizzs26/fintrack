@@ -76,7 +76,7 @@ func NewAccount(userID uuid.UUID, name string) (*Account, error) {
 }
 
 // AddTransaction adds a new transaction to the account
-func (a *Account) AddTransaction(txType TransactionType, description, observation string, amount int64, dueDate time.Time, paidAt *time.Time) error {
+func (a *Account) AddTransaction(txType TransactionType, description, observation string, amount int64, dueDate time.Time, paidAt *time.Time, clock clock.Clock) error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
 	}
@@ -111,7 +111,7 @@ func (a *Account) AddTransaction(txType TransactionType, description, observatio
 		return ErrInconsistentAmountSign
 	}
 
-	if paidAt != nil && paidAt.After(time.Now()) {
+	if paidAt != nil && paidAt.After(clock.Now()) {
 		return ErrPaymentDateInFuture
 	}
 
@@ -184,12 +184,12 @@ func (a *Account) ProjectedBalance() int64 {
 }
 
 // MarkTransactionAsPaid marks a specific transaction as paid at a given time
-func (a *Account) MarkTransactionAsPaid(txID uuid.UUID, paidAt time.Time) error {
+func (a *Account) MarkTransactionAsPaid(txID uuid.UUID, paidAt time.Time, clock clock.Clock) error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
 	}
 
-	if paidAt.After(time.Now()) {
+	if paidAt.After(clock.Now()) {
 		return ErrPaymentDateInFuture
 	}
 
@@ -228,12 +228,12 @@ func (a *Account) MarkTransactionAsUnpaid(txID uuid.UUID) error {
 }
 
 // Archive marks the account as archived, preventing new modifications
-func (a *Account) Archive() error {
+func (a *Account) Archive(clock clock.Clock) error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
 	}
 
-	now := time.Now()
+	now := clock.Now()
 	a.ArchivedAt = &now
 
 	return nil
