@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -38,9 +39,14 @@ const (
 // TransactionType represents the type of a financial transaction
 type TransactionType string
 
+type AccountRepository interface {
+	Save(ctx context.Context, account *Account) error
+}
+
 // Transaction represents a single financial entry in an account
 type Transaction struct {
 	ID          uuid.UUID
+	CategoryID  uuid.UUID
 	Type        TransactionType
 	Description string
 	Observation string
@@ -51,11 +57,12 @@ type Transaction struct {
 
 // Account represents a user's account, which holds a collection of transactions (our aggregate root)
 type Account struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	Name         string
-	transactions []Transaction
-	ArchivedAt   *time.Time
+	ID                      uuid.UUID
+	UserID                  uuid.UUID
+	Name                    string
+	IncludeInOverallBalance bool
+	transactions            []Transaction
+	ArchivedAt              *time.Time
 }
 
 // NewAccount creates a new Account with the given user ID and name
@@ -68,10 +75,11 @@ func NewAccount(userID uuid.UUID, name string) (*Account, error) {
 	}
 
 	return &Account{
-		ID:           uuid.New(),
-		UserID:       userID,
-		Name:         name,
-		transactions: make([]Transaction, 0),
+		ID:                      uuid.New(),
+		UserID:                  userID,
+		Name:                    name,
+		IncludeInOverallBalance: true,
+		transactions:            make([]Transaction, 0),
 	}, nil
 }
 
