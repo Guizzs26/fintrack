@@ -237,7 +237,7 @@ func (q *Querier) upsertAccount(ctx context.Context, accountModel *accountModel)
 			name = EXCLUDED.name,
    	  include_in_overall_balance = EXCLUDED.include_in_overall_balance,
     	archived_at = EXCLUDED.archived_at,
-    	updated_at = now(); 
+    	updated_at = now()
 	`
 
 	_, err := q.db.Exec(ctx, query,

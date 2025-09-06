@@ -1,9 +1,9 @@
 package ledger
 
 import (
-	"errors"
 	"net/http"
 
+	"github.com/Guizzs26/fintrack/internal/modules/pkg/httpx"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -19,10 +19,11 @@ func NewLedgerHandler(ledgerService *Service) *LedgerHandler {
 }
 
 // RegisterRoutes sets up the API routes for the ledger module
-func (h *LedgerHandler) RegisterRoutes(e *echo.Echo) {
-	apiGroup := e.Group("/api/v1")
+func (h *LedgerHandler) RegisterRoutes(apiRouteGroup *echo.Group) {
+	accountsGroup := apiRouteGroup.Group("/accounts")
 
-	apiGroup.POST("/accounts", h.CreateAccountHandler)
+	// POST /api/v1/accounts
+	accountsGroup.POST("", h.createAccountHandler)
 }
 
 // CreateAccountRequest defines the expected JSON body for creating a new account
@@ -39,11 +40,15 @@ type AccountResponse struct {
 	IncludeInOverallBalance bool      `json:"include_in_overall_balance"`
 }
 
-// CreateAccountHandler handles the HTTP request for creating a new account
-func (h *LedgerHandler) CreateAccountHandler(c echo.Context) error {
+// createAccountHandler handles the HTTP request for creating a new account
+func (h *LedgerHandler) createAccountHandler(c echo.Context) error {
 	var req CreateAccountRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return err
 	}
 
 	includeInBalance := true
@@ -54,18 +59,18 @@ func (h *LedgerHandler) CreateAccountHandler(c echo.Context) error {
 	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
 	account, err := h.ledgerService.CreateAccount(c.Request().Context(), mockUserID, req.Name, includeInBalance)
 	if err != nil {
-		if errors.Is(err, ErrAccountNameRequired) {
-			return c.JSON(http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
-		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create account"})
+		return err
 	}
 
-	response := AccountResponse{
-		ID:                      account.ID,
-		UserID:                  account.UserID,
-		Name:                    account.Name,
-		IncludeInOverallBalance: account.IncludeInOverallBalance,
-	}
+	return httpx.SendSuccess(c, http.StatusCreated, toAccountResponse(account))
+}
 
-	return c.JSON(http.StatusCreated, response)
+// toAccountResponse maps the internal Account domain model to the public AccountResponse DTO
+func toAccountResponse(a *Account) AccountResponse {
+	return AccountResponse{
+		ID:                      a.ID,
+		UserID:                  a.UserID,
+		Name:                    a.Name,
+		IncludeInOverallBalance: a.IncludeInOverallBalance,
+	}
 }
