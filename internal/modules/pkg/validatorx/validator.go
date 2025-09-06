@@ -63,6 +63,7 @@ func (v *Validator) Validate(i any) error {
 	return err
 }
 
+// msgForTag translates a validator tag into a user-friendly message
 func msgForTag(tag, param string) string {
 	switch tag {
 	case "required":
