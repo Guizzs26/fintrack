@@ -9,6 +9,7 @@ import (
 
 	"github.com/Guizzs26/fintrack/internal/modules/ledger"
 	"github.com/Guizzs26/fintrack/internal/modules/pkg/clock"
+	"github.com/Guizzs26/fintrack/internal/modules/pkg/validatorx"
 	"github.com/Guizzs26/fintrack/internal/platform/config"
 	"github.com/Guizzs26/fintrack/internal/platform/postgres"
 	"github.com/labstack/echo/v4"
@@ -34,6 +35,7 @@ func run(ctx context.Context, cfg *config.Config) error {
 	defer cancel()
 
 	e := echo.New()
+	e.Validator = validatorx.NewValidator()
 
 	pgConn, err := postgres.NewPostgresConnection(ctx, *cfg)
 	if err != nil {
@@ -48,7 +50,8 @@ func run(ctx context.Context, cfg *config.Config) error {
 	ledgerSvc := ledger.NewLedgerService(accountRepo, clock)
 	ledgerHandler := ledger.NewLedgerHandler(ledgerSvc)
 
-	ledgerHandler.RegisterRoutes(e)
+	apiRouteGroup := e.Group("/api/v1")
+	ledgerHandler.RegisterRoutes(apiRouteGroup)
 
 	e.Logger.Fatal(e.Start(":9999"))
 	return nil
