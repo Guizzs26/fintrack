@@ -14,9 +14,11 @@ import (
 	"github.com/Guizzs26/fintrack/internal/modules/pkg/clock"
 	"github.com/Guizzs26/fintrack/internal/modules/pkg/httpx"
 	"github.com/Guizzs26/fintrack/internal/modules/pkg/logger"
+	ctxlogger "github.com/Guizzs26/fintrack/internal/modules/pkg/logger/context"
 	"github.com/Guizzs26/fintrack/internal/modules/pkg/validatorx"
 	"github.com/Guizzs26/fintrack/internal/platform/config"
 	"github.com/Guizzs26/fintrack/internal/platform/postgres"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -45,55 +47,23 @@ func run(ctx context.Context, cfg *config.Config) error {
 		Format:    logger.FormatJSON,
 		AddSource: true,
 	}
-	appLogger := logger.NewSlogConfig(logCfg)
-	slog.SetDefault(appLogger)
+	baseLogger := logger.NewSlogConfig(logCfg)
+	slog.SetDefault(baseLogger)
 
 	e := echo.New()
+	e.HideBanner = true
 	e.Validator = validatorx.NewValidator()
 	e.HTTPErrorHandler = customerErrorHandler
 
-	e.Use(middleware.RequestID())
 	e.Use(middleware.Recover())
-
-	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		LogMethod:        true,
-		LogURI:           true,
-		LogStatus:        true,
-		LogLatency:       true,
-		LogError:         true,
-		LogRequestID:     true,
-		LogRemoteIP:      true,
-		LogResponseSize:  true,
-		LogContentLength: true,
-
-		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-			// Define the common set of attributes for both success and error logs
-			commonAttrs := []slog.Attr{
-				slog.String("request_id", v.RequestID),
-				slog.String("remote_ip", v.RemoteIP),
-				slog.String("method", v.Method),
-				slog.String("uri", v.URI),
-				slog.Int("status", v.Status),
-				slog.String("latency", v.Latency.String()),
-				slog.Int64("response_size", v.ResponseSize),
-				slog.String("content_length", v.ContentLength),
-			}
-
-			if v.Error == nil {
-				// If there was no error, log it as an INFO level event
-				appLogger.LogAttrs(c.Request().Context(), slog.LevelInfo, "HTTP_REQUEST",
-					commonAttrs...,
-				)
-			} else {
-				// If an error occurred, log it as an ERROR level event,
-				// and include the specific error message.
-				appLogger.LogAttrs(c.Request().Context(), slog.LevelError, "HTTP_REQUEST_ERROR",
-					append(commonAttrs, slog.String("error", v.Error.Error()))...,
-				)
-			}
-			return nil
+	e.Use(middleware.RequestIDWithConfig(middleware.RequestIDConfig{
+		Generator: func() string {
+			return uuid.NewString()
 		},
 	}))
+	e.Use(middleware.BodyLimit("2MB"))
+	e.Use(ContextualLoggerMiddleware(baseLogger))
+	e.Use(RequestLoggerMiddleware())
 
 	pgConn, err := postgres.NewPostgresConnection(ctx, *cfg)
 	if err != nil {
@@ -116,10 +86,63 @@ func run(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
+// ContextualLoggerMiddleware creates a request-scoped logger containing the request ID
+// and injects it into the standard `context.Context` for use in downstream handlers and services
+func ContextualLoggerMiddleware(baseLogger *slog.Logger) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			requestID := c.Response().Header().Get(echo.HeaderXRequestID)
+			requestLogger := baseLogger.With(slog.String("request_id", requestID))
+
+			ctx := c.Request().Context()
+			ctxWithLogger := ctxlogger.SetLogger(ctx, requestLogger)
+			c.SetRequest(c.Request().WithContext(ctxWithLogger))
+
+			return next(c)
+		}
+	}
+}
+
+// RequestLoggerMiddleware configures and returns Echo's built-in request logger middleware
+// It uses the contextual logger (injected by ContextualLoggerMiddleware) to ensure
+// that every access log automatically includes the corresponding request ID
+func RequestLoggerMiddleware() echo.MiddlewareFunc {
+	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus:   true,
+		LogMethod:   true,
+		LogURI:      true,
+		LogError:    true,
+		HandleError: true,
+		LogLatency:  true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			logger := ctxlogger.GetLogger(c.Request().Context())
+
+			if v.Error == nil {
+				logger.LogAttrs(c.Request().Context(), slog.LevelInfo, "HTTP_REQUEST",
+					slog.String("method", v.Method),
+					slog.String("uri", v.URI),
+					slog.Int("status", v.Status),
+					slog.String("latency", v.Latency.String()),
+				)
+			} else {
+				logger.LogAttrs(c.Request().Context(), slog.LevelError, "HTTP_REQUEST_ERROR",
+					slog.String("method", v.Method),
+					slog.String("uri", v.URI),
+					slog.Int("status", v.Status),
+					slog.String("latency", v.Latency.String()),
+					slog.String("error", v.Error.Error()),
+				)
+			}
+			return nil
+		},
+	})
+}
+
 // customErrorHandler is the centralized error handler for the entire API
 // It intercepts any error returned from a handler, inspects its type, and
 // formats a standardized JSON error response using our' httpx.Error structure
 func customerErrorHandler(err error, c echo.Context) {
+	log := ctxlogger.GetLogger(c.Request().Context())
 	if c.Response().Committed {
 		return
 	}
@@ -139,7 +162,6 @@ func customerErrorHandler(err error, c echo.Context) {
 	// 2. Handle known domain errors from the LEDGER MODULE
 	var httpStatus int
 	var errResp httpx.APIError
-
 	switch {
 	case errors.Is(err, ledger.ErrAccountNotFound):
 		httpStatus = http.StatusNotFound // 404
@@ -170,7 +192,7 @@ func customerErrorHandler(err error, c echo.Context) {
 	}
 
 	// 4. Fallback for any other unexpected error
-	c.Logger().Error(err) // Log the full error for DEBUGGING
+	log.Error("unhandled internal error", slog.String("error", err.Error()))
 	errResp = httpx.NewAPIError(
 		"INTERNAL_SERVER_ERROR",
 		"An unexpected error occurred",
