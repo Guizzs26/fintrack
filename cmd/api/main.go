@@ -165,10 +165,14 @@ func customerErrorHandler(err error, c echo.Context) {
 	var errMsg string = err.Error()
 	switch {
 	// 404 Not Found
-	case errors.Is(err, ledger.ErrAccountNotFound), errors.Is(err, ledger.ErrTransactionNotFound):
+	case errors.Is(err, ledger.ErrAccountNotFound):
 		httpStatus = http.StatusNotFound
 		errCode = "RESOURCE_NOT_FOUND"
-		errMsg = err.Error()
+		errMsg = ledger.ErrAccountNotFound.Error()
+	case errors.Is(err, ledger.ErrTransactionNotFound):
+		httpStatus = http.StatusNotFound
+		errCode = "RESOURCE_NOT_FOUND"
+		errMsg = ledger.ErrTransactionNotFound.Error()
 
 		// 403 Forbidden
 	case errors.Is(err, ledger.ErrAccountArchived):

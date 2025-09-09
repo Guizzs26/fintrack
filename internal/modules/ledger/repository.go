@@ -342,7 +342,7 @@ func (q *Querier) getTransactionsByAccountID(ctx context.Context, accountID uuid
 
 	rows, err := q.db.Query(ctx, query, accountID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query transactions for account: %v", err)
+		return nil, fmt.Errorf("query transactions by account id: %v", err)
 	}
 	defer rows.Close()
 
@@ -359,17 +359,17 @@ func (q *Querier) getTransactionsByAccountID(ctx context.Context, accountID uuid
 			&m.Observation,
 			&m.Amount,
 			&m.DueDate,
-			&m.PaidAt,
 			&m.Metadata,
+			&m.PaidAt,
 			&m.CreatedAt,
 			&m.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("failed to scan transaction row: %v", err)
+			return nil, fmt.Errorf("get transaction by account id: error scan transaction row: %v", err)
 		}
 		transactions = append(transactions, m)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed during transaction rows iteration: %v", err)
+		return nil, fmt.Errorf("get transaction by account id: error iterating transaction rows: %v", err)
 	}
 
 	return transactions, nil
