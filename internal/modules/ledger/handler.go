@@ -3,7 +3,7 @@ package ledger
 import (
 	"net/http"
 
-	"github.com/Guizzs26/fintrack/internal/modules/pkg/httpx"
+	"github.com/Guizzs26/fintrack/pkg/httpx"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -44,7 +44,7 @@ type AccountResponse struct {
 func (h *LedgerHandler) createAccountHandler(c echo.Context) error {
 	var req CreateAccountRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body format")
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body format")
 	}
 
 	if err := c.Validate(&req); err != nil {
@@ -56,7 +56,7 @@ func (h *LedgerHandler) createAccountHandler(c echo.Context) error {
 		includeInBalance = *req.IncludeInOverallBalance
 	}
 
-	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
+	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b")
 	account, err := h.ledgerService.CreateAccount(c.Request().Context(), mockUserID, req.Name, includeInBalance)
 	if err != nil {
 		return err

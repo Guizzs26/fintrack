@@ -11,13 +11,13 @@ import (
 	"syscall"
 
 	"github.com/Guizzs26/fintrack/internal/modules/ledger"
-	"github.com/Guizzs26/fintrack/internal/modules/pkg/clock"
-	"github.com/Guizzs26/fintrack/internal/modules/pkg/httpx"
-	"github.com/Guizzs26/fintrack/internal/modules/pkg/logger"
-	ctxlogger "github.com/Guizzs26/fintrack/internal/modules/pkg/logger/context"
-	"github.com/Guizzs26/fintrack/internal/modules/pkg/validatorx"
 	"github.com/Guizzs26/fintrack/internal/platform/config"
 	"github.com/Guizzs26/fintrack/internal/platform/postgres"
+	"github.com/Guizzs26/fintrack/pkg/clock"
+	"github.com/Guizzs26/fintrack/pkg/httpx"
+	"github.com/Guizzs26/fintrack/pkg/logger"
+	ctxlogger "github.com/Guizzs26/fintrack/pkg/logger/context"
+	"github.com/Guizzs26/fintrack/pkg/validatorx"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -152,7 +152,7 @@ func customerErrorHandler(err error, c echo.Context) {
 	if errors.As(err, &valErr) {
 		errResp := httpx.NewAPIError(
 			"VALIDATION_ERROR",
-			"One or more fields failed validation",
+			"one or more fields failed validation",
 			valErr.Errors, // The 'Details' field will contain the slice of FieldError
 		)
 		httpx.SendAPIError(c, http.StatusBadRequest, errResp)
@@ -161,24 +161,72 @@ func customerErrorHandler(err error, c echo.Context) {
 
 	// 2. Handle known domain errors from the LEDGER MODULE
 	var httpStatus int
-	var errResp httpx.APIError
+	var errCode string
+	var errMsg string = err.Error()
 	switch {
-	case errors.Is(err, ledger.ErrAccountNotFound):
-		httpStatus = http.StatusNotFound // 404
-		errResp = httpx.NewAPIError("RESOURCE_NOT_FOUND", err.Error(), nil)
+	// 404 Not Found
+	case errors.Is(err, ledger.ErrAccountNotFound), errors.Is(err, ledger.ErrTransactionNotFound):
+		httpStatus = http.StatusNotFound
+		errCode = "RESOURCE_NOT_FOUND"
+		errMsg = err.Error()
 
+		// 403 Forbidden
 	case errors.Is(err, ledger.ErrAccountArchived):
-		httpStatus = http.StatusForbidden // 403
-		errResp = httpx.NewAPIError("FORBIDDEN", err.Error(), nil)
+		httpStatus = http.StatusForbidden
+		errCode = "FORBIDDEN"
+		errMsg = err.Error()
 
-	case errors.Is(err, ledger.ErrAccountNameRequired),
-		errors.Is(err, ledger.ErrInconsistentAmountSign),
-		errors.Is(err, ledger.ErrAmountCannotBeZero):
-		httpStatus = http.StatusUnprocessableEntity // 422
-		errResp = httpx.NewAPIError("BUSINESS_RULE_VIOLATION", err.Error(), nil)
+		// 409 Conflict
+	case errors.Is(err, ledger.ErrTransactionAlreadyPaid):
+		httpStatus = http.StatusConflict
+		errCode = "STATE_CONFLICT"
+		errMsg = ledger.ErrTransactionAlreadyPaid.Error()
+	case errors.Is(err, ledger.ErrTransactionAlreadyUnpaid):
+		httpStatus = http.StatusConflict
+		errCode = "STATE_CONFLICT"
+		errMsg = ledger.ErrTransactionAlreadyUnpaid.Error()
+	case errors.Is(err, ledger.ErrAccountAlreadyIncluded):
+		httpStatus = http.StatusConflict
+		errCode = "STATE_CONFLICT"
+		errMsg = ledger.ErrAccountAlreadyIncluded.Error()
+	case errors.Is(err, ledger.ErrAccountAlreadyExcluded):
+		httpStatus = http.StatusConflict
+		errCode = "STATE_CONFLICT"
+		errMsg = ledger.ErrAccountAlreadyExcluded.Error()
+	case errors.Is(err, ledger.ErrAccountNotArchived):
+		httpStatus = http.StatusConflict
+		errCode = "STATE_CONFLICT"
+		errMsg = ledger.ErrAccountNotArchived.Error()
+
+		// 422 Unprocessable Entity
+	case errors.Is(err, ledger.ErrAccountNameRequired):
+		httpStatus = http.StatusUnprocessableEntity
+		errCode = "BUSINESS_RULE_VIOLATION"
+		errMsg = ledger.ErrAccountNameRequired.Error()
+	case errors.Is(err, ledger.ErrInconsistentAmountSign):
+		httpStatus = http.StatusUnprocessableEntity
+		errCode = "BUSINESS_RULE_VIOLATION"
+		errMsg = ledger.ErrInconsistentAmountSign.Error()
+	case errors.Is(err, ledger.ErrAmountCannotBeZero):
+		httpStatus = http.StatusUnprocessableEntity
+		errCode = "BUSINESS_RULE_VIOLATION"
+		errMsg = ledger.ErrAmountCannotBeZero.Error()
+	case errors.Is(err, ledger.ErrDescriptionRequired):
+		httpStatus = http.StatusUnprocessableEntity
+		errCode = "BUSINESS_RULE_VIOLATION"
+		errMsg = ledger.ErrDescriptionRequired.Error()
+	case errors.Is(err, ledger.ErrInvalidTransactionType):
+		httpStatus = http.StatusUnprocessableEntity
+		errCode = "BUSINESS_RULE_VIOLATION"
+		errMsg = ledger.ErrInvalidTransactionType.Error()
+	case errors.Is(err, ledger.ErrPaymentDateInFuture):
+		httpStatus = http.StatusUnprocessableEntity
+		errCode = "BUSINESS_RULE_VIOLATION"
+		errMsg = ledger.ErrPaymentDateInFuture.Error()
 	}
 
 	if httpStatus != 0 {
+		errResp := httpx.NewAPIError(errCode, errMsg, nil)
 		httpx.SendAPIError(c, httpStatus, errResp)
 		return
 	}
@@ -186,14 +234,14 @@ func customerErrorHandler(err error, c echo.Context) {
 	// 3. Handle generic Echo HTTP errors
 	var httpErr *echo.HTTPError
 	if errors.As(err, &httpErr) {
-		errResp = httpx.NewAPIError("HTTP_ERROR", fmt.Sprintf("%v", httpErr.Message), nil)
+		errResp := httpx.NewAPIError("HTTP_ERROR", fmt.Sprintf("%v", httpErr.Message), nil)
 		httpx.SendAPIError(c, httpErr.Code, errResp)
 		return
 	}
 
 	// 4. Fallback for any other unexpected error
 	log.Error("unhandled internal error", slog.String("error", err.Error()))
-	errResp = httpx.NewAPIError(
+	errResp := httpx.NewAPIError(
 		"INTERNAL_SERVER_ERROR",
 		"An unexpected error occurred",
 		nil,

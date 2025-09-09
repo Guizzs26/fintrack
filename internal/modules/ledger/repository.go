@@ -34,20 +34,20 @@ func NewPostgresAccountRepository(pool *pgxpool.Pool) *PostgresAccountRepository
 func (par *PostgresAccountRepository) ExecTx(ctx context.Context, fn func(q *Querier) error) error {
 	tx, err := par.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("repository: failed to begin transaction: %v", err)
+		return fmt.Errorf("repository: failed to begin transaction: %w", err)
 	}
 
 	q := NewQuerier(tx)
 
 	if err := fn(q); err != nil {
 		if rbErr := tx.Rollback(ctx); rbErr != nil {
-			return fmt.Errorf("repository: transaction rollback failed: %v (original error: %v)", rbErr, err)
+			return fmt.Errorf("repository: transaction rollback failed: %v (original error: %w)", rbErr, err)
 		}
 		return err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("repository: failed to commit transaction: %v", err)
+		return fmt.Errorf("repository: failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -202,19 +202,15 @@ func (par *PostgresAccountRepository) FindByID(ctx context.Context, accountID uu
 
 	accModel, err := q.getAccountByID(ctx, accountID)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, ErrAccountNotFound
-		}
-		return nil, err
+		return nil, fmt.Errorf("failed to find account: %w", err)
 	}
 
 	txModels, err := q.getTransactionsByAccountID(ctx, accountID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find transactions for account: %w", err)
 	}
 
 	account := toAccountDomain(accModel, txModels)
-
 	return account, nil
 }
 
@@ -248,7 +244,7 @@ func (q *Querier) upsertAccount(ctx context.Context, accountModel *accountModel)
 		accountModel.ArchivedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("repository: failed to upsert account: %v", err)
+		return fmt.Errorf("failed to upsert account: %v", err)
 	}
 
 	return nil
@@ -260,7 +256,7 @@ func (q *Querier) deleteTransactionsForAccount(ctx context.Context, accountID uu
 
 	_, err := q.db.Exec(ctx, query, accountID)
 	if err != nil {
-		return fmt.Errorf("repository: failed to delete old transactions for account %s: %v", accountID, err)
+		return fmt.Errorf("failed to delete transactions for account: %v", err)
 	}
 
 	return nil
@@ -281,7 +277,6 @@ func (q *Querier) bulkInsertTransactions(ctx context.Context, accountID, userID 
 
 	for _, tx := range transactions {
 		txModel := toTransactionPersistence(&tx, accountID, userID)
-
 		batch.Queue(query,
 			txModel.ID,
 			txModel.AccountID,
@@ -300,7 +295,7 @@ func (q *Querier) bulkInsertTransactions(ctx context.Context, accountID, userID 
 	defer br.Close()
 
 	if _, err := br.Exec(); err != nil {
-		return fmt.Errorf("repository: failed to bulk insert transactions: %v", err)
+		return fmt.Errorf("failed to bulk insert transactions: %v", err)
 	}
 
 	return nil
@@ -325,7 +320,10 @@ func (q *Querier) getAccountByID(ctx context.Context, accountID uuid.UUID) (*acc
 		&m.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrAccountNotFound
+		}
+		return nil, fmt.Errorf("failed to fetch account by id: %w", err)
 	}
 
 	return &m, nil
@@ -344,7 +342,7 @@ func (q *Querier) getTransactionsByAccountID(ctx context.Context, accountID uuid
 
 	rows, err := q.db.Query(ctx, query, accountID)
 	if err != nil {
-		return nil, fmt.Errorf("repository: failed to query transactions: %v", err)
+		return nil, fmt.Errorf("failed to query transactions for account: %v", err)
 	}
 	defer rows.Close()
 
@@ -366,12 +364,12 @@ func (q *Querier) getTransactionsByAccountID(ctx context.Context, accountID uuid
 			&m.CreatedAt,
 			&m.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("repository: failed to scan transaction row: %v", err)
+			return nil, fmt.Errorf("failed to scan transaction row: %v", err)
 		}
 		transactions = append(transactions, m)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("repository: error iterating transaction rows: %v", err)
+		return nil, fmt.Errorf("failed during transaction rows iteration: %v", err)
 	}
 
 	return transactions, nil

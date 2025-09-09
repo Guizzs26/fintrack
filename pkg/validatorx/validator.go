@@ -3,6 +3,7 @@ package validatorx
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -53,7 +54,7 @@ func (v *Validator) Validate(i any) error {
 
 		for i, fe := range validationErrors {
 			out.Errors[i] = FieldError{
-				Field:   fe.Field(),
+				Field:   strings.ToLower(fe.Field()),
 				Tag:     fe.Tag(),
 				Message: msgForTag(fe.Tag(), fe.Param()),
 			}
@@ -67,14 +68,14 @@ func (v *Validator) Validate(i any) error {
 func msgForTag(tag, param string) string {
 	switch tag {
 	case "required":
-		return "This field is required"
+		return "this field is required"
 	case "email":
-		return "Invalid email format"
+		return "invalid email format"
 	case "min":
-		return fmt.Sprintf("This field must be at least %s characters long", param)
+		return fmt.Sprintf("this field must be at least %s characters long", param)
 	case "max":
-		return fmt.Sprintf("This field must not exceed %s characters", param)
+		return fmt.Sprintf("this field must not exceed %s characters", param)
 	default:
-		return fmt.Sprintf("Failed validation on rule: %s", tag)
+		return fmt.Sprintf("failed validation on rule: %s", tag)
 	}
 }

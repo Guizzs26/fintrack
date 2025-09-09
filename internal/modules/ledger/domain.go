@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Guizzs26/fintrack/internal/modules/pkg/clock"
+	"github.com/Guizzs26/fintrack/pkg/clock"
 	"github.com/google/uuid"
 )
 
@@ -87,7 +87,7 @@ func NewAccount(userID uuid.UUID, name string, includeInBalance bool) (*Account,
 }
 
 // AddTransaction adds a new transaction to the account
-func (a *Account) AddTransaction(txType TransactionType, description, observation string, amount int64, dueDate time.Time, paidAt *time.Time, clock clock.Clock) error {
+func (a *Account) AddTransaction(txType TransactionType, description, observation string, amount int64, categoryID *uuid.UUID, dueDate time.Time, paidAt *time.Time, clock clock.Clock) error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
 	}
@@ -95,7 +95,7 @@ func (a *Account) AddTransaction(txType TransactionType, description, observatio
 	if strings.TrimSpace(description) == "" {
 		return ErrDescriptionRequired
 	}
-	if len(description) > maxTransactionDescriptionLength {
+	if utf8.RuneCountInString(description) > maxTransactionDescriptionLength {
 		return fmt.Errorf("transaction description cannot exceed %d characters", maxTransactionDescriptionLength)
 	}
 
@@ -128,6 +128,7 @@ func (a *Account) AddTransaction(txType TransactionType, description, observatio
 
 	tx := Transaction{
 		ID:          uuid.New(),
+		CategoryID:  categoryID,
 		Type:        txType,
 		Amount:      amount,
 		Description: description,

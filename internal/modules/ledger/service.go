@@ -3,9 +3,10 @@ package ledger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
-	"github.com/Guizzs26/fintrack/internal/modules/pkg/clock"
+	"github.com/Guizzs26/fintrack/pkg/clock"
 	"github.com/google/uuid"
 )
 
@@ -13,6 +14,7 @@ import (
 type AddTransactionParams struct {
 	AccountID   uuid.UUID
 	UserID      uuid.UUID
+	CategoryID  *uuid.UUID
 	Type        TransactionType
 	Description string
 	Observation string
@@ -39,11 +41,11 @@ func NewLedgerService(accRepo AccountRepository, clock clock.Clock) *Service {
 func (s *Service) CreateAccount(ctx context.Context, userID uuid.UUID, name string, includeInBalance bool) (*Account, error) {
 	account, err := NewAccount(userID, name, includeInBalance)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create new account: %w", err)
 	}
 
 	if err := s.accountRepo.Save(ctx, account); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to save new account: %w", err)
 	}
 
 	return account, nil
@@ -53,7 +55,7 @@ func (s *Service) CreateAccount(ctx context.Context, userID uuid.UUID, name stri
 func (s *Service) AddTransactionToAccount(ctx context.Context, params AddTransactionParams) error {
 	account, err := s.accountRepo.FindByID(ctx, params.AccountID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find account to add transaction: %w", err)
 	}
 
 	// Enforce authorization rule: user can only modify their own account (FUTURE AUTHn/AUTHz)
@@ -66,13 +68,18 @@ func (s *Service) AddTransactionToAccount(ctx context.Context, params AddTransac
 		params.Description,
 		params.Observation,
 		params.Amount,
+		params.CategoryID,
 		params.DueDate,
 		params.PaidAt,
 		s.clock,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to add transaction: %w", err)
 	}
 
-	return s.accountRepo.Save(ctx, account)
+	if err := s.accountRepo.Save(ctx, account); err != nil {
+		return fmt.Errorf("failed to save account after adding transaction: %w", err)
+	}
+
+	return nil
 }
