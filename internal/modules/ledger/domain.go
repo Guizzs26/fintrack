@@ -44,6 +44,7 @@ type TransactionType string
 type AccountRepository interface {
 	Save(ctx context.Context, account *Account) error
 	FindByID(ctx context.Context, accountID uuid.UUID) (*Account, error)
+	FindAccountsByUserID(ctx context.Context, userID uuid.UUID) ([]*Account, error)
 }
 
 // Transaction represents a single financial entry in an account

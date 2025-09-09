@@ -149,11 +149,12 @@ func toAccountDomain(m *accountModel, txsModels []transactionModel) *Account {
 	// Note que não usamos NewAccount() aqui, pois estamos recriando um agregado
 	// que já existe, e não criando um novo.
 	return &Account{
-		ID:           m.ID,
-		UserID:       m.UserID,
-		Name:         m.Name,
-		ArchivedAt:   m.ArchivedAt,
-		transactions: domainTx,
+		ID:                      m.ID,
+		UserID:                  m.UserID,
+		Name:                    m.Name,
+		IncludeInOverallBalance: m.IncludeInOverallBalance,
+		ArchivedAt:              m.ArchivedAt,
+		transactions:            domainTx,
 	}
 }
 
@@ -212,6 +213,37 @@ func (par *PostgresAccountRepository) FindByID(ctx context.Context, accountID uu
 
 	account := toAccountDomain(accModel, txModels)
 	return account, nil
+}
+
+// FindAccountsByUserID retrieves an collection (if exists) of Accounts aggregates by the user ID
+func (par *PostgresAccountRepository) FindAccountsByUserID(ctx context.Context, userID uuid.UUID) ([]*Account, error) {
+	q := par.Querier()
+	accModels, err := q.getAccountsByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(accModels) == 0 {
+		return []*Account{}, nil
+	}
+
+	txModels, err := q.getTransactionsByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	transactionsByAccount := make(map[uuid.UUID][]transactionModel)
+	for _, txm := range txModels {
+		transactionsByAccount[txm.AccountID] = append(transactionsByAccount[txm.AccountID], txm)
+	}
+
+	accounts := make([]*Account, len(accModels))
+	for i, acm := range accModels {
+		accountTransactions := transactionsByAccount[acm.ID]
+		accounts[i] = toAccountDomain(&acm, accountTransactions)
+	}
+
+	return accounts, nil
 }
 
 // ----- Querier Methods ----- //
@@ -370,6 +402,90 @@ func (q *Querier) getTransactionsByAccountID(ctx context.Context, accountID uuid
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("get transaction by account id: error iterating transaction rows: %v", err)
+	}
+
+	return transactions, nil
+}
+
+// getAccountsByUserID retrieves a single account from the database by the user id
+func (q *Querier) getAccountsByUserID(ctx context.Context, userID uuid.UUID) ([]accountModel, error) {
+	query := `
+		SELECT id, user_id, name, include_in_overall_balance, archived_at, created_at, updated_at
+		FROM accounts
+		WHERE user_id = $1 AND archived_at IS NULL
+		ORDER BY name ASC
+	`
+
+	rows, err := q.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("query accounts by user id: %v", err)
+	}
+	defer rows.Close()
+
+	var accounts []accountModel
+	for rows.Next() {
+		var m accountModel
+		if err := rows.Scan(
+			&m.ID,
+			&m.UserID,
+			&m.Name,
+			&m.IncludeInOverallBalance,
+			&m.ArchivedAt,
+			&m.CreatedAt,
+			&m.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("get accounts by user id: error scan transaction row: %v", err)
+		}
+		accounts = append(accounts, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get account by user id: error iterating transaction rows: %v", err)
+	}
+
+	return accounts, nil
+}
+
+// getTransactionsByUserID retrieves all transactions for a given account ID
+func (q *Querier) getTransactionsByUserID(ctx context.Context, userID uuid.UUID) ([]transactionModel, error) {
+	query := `
+		SELECT id, account_id, user_id, category_id, type, description, 
+			observation, amount_in_cents, due_date, metadata, paid_at,
+			created_at, updated_at
+		FROM transactions
+		WHERE user_id = $1
+		ORDER BY due_date ASC
+	`
+
+	rows, err := q.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("query transactions by user id: %v", err)
+	}
+	defer rows.Close()
+
+	var transactions []transactionModel
+	for rows.Next() {
+		var m transactionModel
+		if err := rows.Scan(
+			&m.ID,
+			&m.AccountID,
+			&m.UserID,
+			&m.CategoryID,
+			&m.Type,
+			&m.Description,
+			&m.Observation,
+			&m.Amount,
+			&m.DueDate,
+			&m.Metadata,
+			&m.PaidAt,
+			&m.CreatedAt,
+			&m.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("get transaction by user id: error scan transaction row: %v", err)
+		}
+		transactions = append(transactions, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get transaction by user id: error iterating transaction rows: %v", err)
 	}
 
 	return transactions, nil

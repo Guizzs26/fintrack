@@ -13,11 +13,15 @@ import (
 // LedgerHandler holds dependencies for ledger-related HTTP handlers
 type LedgerHandler struct {
 	ledgerService *Service
+	clock         clock.Clock
 }
 
 // NewLedgerHandler creates a new instance of LedgerHandler
-func NewLedgerHandler(ledgerService *Service) *LedgerHandler {
-	return &LedgerHandler{ledgerService: ledgerService}
+func NewLedgerHandler(ledgerService *Service, clock clock.Clock) *LedgerHandler {
+	return &LedgerHandler{
+		ledgerService: ledgerService,
+		clock:         clock,
+	}
 }
 
 // RegisterRoutes sets up the API routes for the ledger module
@@ -27,7 +31,8 @@ func (h *LedgerHandler) RegisterRoutes(apiRouteGroup *echo.Group) {
 	// POST /api/v1/accounts
 	accountsGroup.POST("", h.createAccountHandler)
 	accountsGroup.POST("/:id/transactions", h.addTransactionHandler)
-	accountsGroup.GET("/:id", h.findAccountByID)
+	accountsGroup.GET("/:id", h.findAccountByIDHandler)
+	accountsGroup.GET("", h.findAccountsByUserIDHandler)
 }
 
 // CreateAccountRequest defines the expected JSON body for creating a new account
@@ -73,6 +78,30 @@ type AccountDetailResponse struct {
 	ProjectedBalance        int64                 `json:"projected_balance"`
 	IncludeInOverallBalance bool                  `json:"include_in_overall_balance"`
 	Transactions            []TransactionResponse `json:"transactions"`
+}
+
+// AccountSummaryResponse defines a summary view of an account for list endpoints
+type AccountSummaryResponse struct {
+	ID               uuid.UUID `json:"id"`
+	Name             string    `json:"name"`
+	RealBalance      int64     `json:"real_balance"`
+	ProjectedBalance int64     `json:"projected_balance"`
+}
+
+// CurrentMonthFlowSummary details the income, expenses and net (balance) result of the current month
+type CurrentMonthFlowSummary struct {
+	Income  int64 `json:"income"`
+	Expense int64 `json:"expense"`
+	NetFlow int64 `json:"net_flow"` // income - expense
+}
+
+// AccountListResponse is the DTO for the response listing all the user's accounts
+// Includes the list of accounts and the calculated overall balances
+type AccountListResponse struct {
+	OverallRealBalance      int64                    `json:"overall_real_balance"`
+	OverallProjectedBalance int64                    `json:"overall_projected_balance"`
+	CurrentMonthFlow        CurrentMonthFlowSummary  `json:"current_month_flow"`
+	Accounts                []AccountSummaryResponse `json:"accounts"`
 }
 
 // createAccountHandler handles the HTTP request for creating a new account
@@ -137,7 +166,7 @@ func (h *LedgerHandler) addTransactionHandler(c echo.Context) error {
 }
 
 // findAccountByID handles the HTTP request for finding a account by id
-func (h *LedgerHandler) findAccountByID(c echo.Context) error {
+func (h *LedgerHandler) findAccountByIDHandler(c echo.Context) error {
 	accountID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid account id format")
@@ -149,6 +178,16 @@ func (h *LedgerHandler) findAccountByID(c echo.Context) error {
 	}
 
 	return httpx.SendSuccess(c, http.StatusOK, toAccountDetailResponse(account))
+}
+
+func (h *LedgerHandler) findAccountsByUserIDHandler(c echo.Context) error {
+	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
+	accounts, err := h.ledgerService.FindAccountsByUserID(c.Request().Context(), mockUserID)
+	if err != nil {
+		return err
+	}
+
+	return httpx.SendSuccess(c, http.StatusOK, toAccountListResponse(accounts, h.clock))
 }
 
 // toAccountResponse maps the internal Account domain model to the public AccountResponse DTO
@@ -184,5 +223,64 @@ func toAccountDetailResponse(a *Account) AccountDetailResponse {
 		ProjectedBalance:        a.ProjectedBalance(),
 		IncludeInOverallBalance: a.IncludeInOverallBalance,
 		Transactions:            txResponses,
+	}
+}
+
+// toAccountListResponse maps a slice of Accounts from the domain to the public DTO AccountListResponse
+// It is responsible for calculating the overall balances and cash flow for the current month
+func toAccountListResponse(accounts []*Account, clock clock.Clock) AccountListResponse {
+	now := clock.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	startOfNextMonth := startOfMonth.AddDate(0, 1, 0)
+
+	var overallRealBalance int64 = 0
+	var overallProjectedBalance int64 = 0
+	var currentMonthIncome int64 = 0
+	var currentMonthExpense int64 = 0
+	accountSummaries := make([]AccountSummaryResponse, len(accounts))
+
+	for i, acc := range accounts {
+		realBalance := acc.RealBalance(clock)
+		projectedBalance := acc.ProjectedBalance()
+
+		// A .presentation business logic: overall balance calculation (regardless of the period)
+		if acc.IncludeInOverallBalance {
+			overallRealBalance += realBalance
+			overallProjectedBalance += projectedBalance
+		}
+
+		// calculate the current month's flow
+		if acc.IncludeInOverallBalance {
+			for _, tx := range acc.Transactions() {
+				// The transaction only enters the monthly flow if:
+				// 1. It was paid/completed (PaidAt is not null)
+				// 2. The payment date is within the current month's range
+				if tx.PaidAt != nil && !tx.PaidAt.Before(startOfMonth) && tx.PaidAt.Before(startOfNextMonth) {
+					switch tx.Type {
+					case Income, Adjustment:
+						currentMonthIncome += tx.Amount
+					case Expense:
+						currentMonthExpense += tx.Amount
+					}
+				}
+			}
+		}
+
+		accountSummaries[i] = AccountSummaryResponse{
+			ID:               acc.ID,
+			Name:             acc.Name,
+			RealBalance:      realBalance,
+			ProjectedBalance: projectedBalance,
+		}
+	}
+
+	return AccountListResponse{
+		OverallRealBalance:      overallRealBalance,
+		OverallProjectedBalance: overallProjectedBalance,
+		CurrentMonthFlow: CurrentMonthFlowSummary{
+			Income:  currentMonthIncome,
+			Expense: currentMonthExpense,
+			NetFlow: currentMonthIncome + currentMonthExpense},
+		Accounts: accountSummaries,
 	}
 }

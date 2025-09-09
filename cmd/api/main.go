@@ -77,7 +77,7 @@ func run(ctx context.Context, cfg *config.Config) error {
 
 	accountRepo := ledger.NewPostgresAccountRepository(pgConn.Pool)
 	ledgerSvc := ledger.NewLedgerService(accountRepo, clock)
-	ledgerHandler := ledger.NewLedgerHandler(ledgerSvc)
+	ledgerHandler := ledger.NewLedgerHandler(ledgerSvc, clock)
 
 	apiRouteGroup := e.Group("/api/v1")
 	ledgerHandler.RegisterRoutes(apiRouteGroup)

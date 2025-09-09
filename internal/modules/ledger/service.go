@@ -93,3 +93,13 @@ func (s *Service) FindAccountByID(ctx context.Context, accountID uuid.UUID) (*Ac
 
 	return account, nil
 }
+
+// FindAccountsByUserID is the use case for finding the users account(s) by the user id
+func (s *Service) FindAccountsByUserID(ctx context.Context, userID uuid.UUID) ([]*Account, error) {
+	accounts, err := s.accountRepo.FindAccountsByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find accounts by user id: %w", err)
+	}
+
+	return accounts, nil
+}
