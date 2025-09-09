@@ -31,6 +31,7 @@ func (h *LedgerHandler) RegisterRoutes(apiRouteGroup *echo.Group) {
 	// POST /api/v1/accounts
 	accountsGroup.POST("", h.createAccountHandler)
 	accountsGroup.POST("/:id/transactions", h.addTransactionHandler)
+	accountsGroup.PUT("/:id", h.updateAccountHandler)
 	accountsGroup.GET("/:id", h.findAccountByIDHandler)
 	accountsGroup.GET("", h.findAccountsByUserIDHandler)
 }
@@ -50,6 +51,12 @@ type AddTransactionRequest struct {
 	DueDate     time.Time       `json:"due_date" validate:"required"`
 	PaidAt      *time.Time      `json:"paid_at,omitempty"`
 	CategoryID  *uuid.UUID      `json:"category_id,omitempty"`
+}
+
+// UpdateAccountRequest defines the expected JSON body for updating an account
+type UpdateAccountRequest struct {
+	Name                    *string `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
+	IncludeInOverallBalance *bool   `json:"include_in_overall_balance,omitempty"`
 }
 
 // TransactionResponse defines the structure of an transaction returned by the API
@@ -165,6 +172,42 @@ func (h *LedgerHandler) addTransactionHandler(c echo.Context) error {
 	return httpx.SendSuccess(c, http.StatusNoContent, nil)
 }
 
+// updateAccountHandler handles HTTP request for update a existing account
+func (h *LedgerHandler) updateAccountHandler(c echo.Context) error {
+	accountID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid account id format")
+	}
+
+	var req UpdateAccountRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	if req.Name == nil && req.IncludeInOverallBalance == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "at least one field must be provided for update")
+	}
+
+	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
+	params := UpdateAccountParams{
+		AccountID:               accountID,
+		UserID:                  mockUserID,
+		Name:                    req.Name,
+		IncludeInOverallBalance: req.IncludeInOverallBalance,
+	}
+
+	account, err := h.ledgerService.UpdateAccount(c.Request().Context(), params)
+	if err != nil {
+		return err
+	}
+
+	return httpx.SendSuccess(c, http.StatusOK, toAccountResponse(account))
+}
+
 // findAccountByID handles the HTTP request for finding a account by id
 func (h *LedgerHandler) findAccountByIDHandler(c echo.Context) error {
 	accountID, err := uuid.Parse(c.Param("id"))
@@ -227,7 +270,7 @@ func toAccountDetailResponse(a *Account) AccountDetailResponse {
 }
 
 // toAccountListResponse maps a slice of Accounts from the domain to the public DTO AccountListResponse
-// It is responsible for calculating the overall balances and cash flow for the current month
+// It is responsible for calculating the overall balances and cash flow for the *current month*
 func toAccountListResponse(accounts []*Account, clock clock.Clock) AccountListResponse {
 	now := clock.Now()
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())

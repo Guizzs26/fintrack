@@ -218,6 +218,7 @@ func (par *PostgresAccountRepository) FindByID(ctx context.Context, accountID uu
 // FindAccountsByUserID retrieves an collection (if exists) of Accounts aggregates by the user ID
 func (par *PostgresAccountRepository) FindAccountsByUserID(ctx context.Context, userID uuid.UUID) ([]*Account, error) {
 	q := par.Querier()
+
 	accModels, err := q.getAccountsByUserID(ctx, userID)
 	if err != nil {
 		return nil, err

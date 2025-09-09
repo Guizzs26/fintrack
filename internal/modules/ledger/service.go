@@ -23,6 +23,14 @@ type AddTransactionParams struct {
 	PaidAt      *time.Time
 }
 
+// UpdateAccountParams hols all the required data for UpdateAccount use case
+type UpdateAccountParams struct {
+	AccountID               uuid.UUID
+	UserID                  uuid.UUID
+	Name                    *string
+	IncludeInOverallBalance *bool
+}
+
 // Service encapsulates the application's business logic (use cases) for the ledger module
 type Service struct {
 	accountRepo AccountRepository
@@ -82,6 +90,46 @@ func (s *Service) AddTransactionToAccount(ctx context.Context, params AddTransac
 	}
 
 	return nil
+}
+
+// UpdateAccount is the use case for update an existing account
+func (s *Service) UpdateAccount(ctx context.Context, params UpdateAccountParams) (*Account, error) {
+	account, err := s.FindAccountByID(ctx, params.AccountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find account to update the account: %w", err)
+	}
+
+	if account.UserID != params.UserID {
+		return nil, errors.New("user does not have permission to access this account")
+	}
+
+	if params.Name != nil {
+		if err := account.ChangeName(*params.Name); err != nil {
+			return nil, fmt.Errorf("failed to update account name: %w", err)
+		}
+	}
+
+	if params.IncludeInOverallBalance != nil {
+		if *params.IncludeInOverallBalance {
+			if err := account.EnableOverallBalance(); err != nil {
+				if !errors.Is(err, ErrAccountAlreadyIncluded) {
+					return nil, fmt.Errorf("failed to include account in overall balance: %w", err)
+				}
+			}
+		} else {
+			if err := account.DisableOverallBalance(); err != nil {
+				if !errors.Is(err, ErrAccountAlreadyExcluded) {
+					return nil, fmt.Errorf("failed to exclude account from overall balance: %w", err)
+				}
+			}
+		}
+	}
+
+	if err := s.accountRepo.Save(ctx, account); err != nil {
+		return nil, fmt.Errorf("failed to update account: %w", err)
+	}
+
+	return account, nil
 }
 
 // FindAccountByID is the use case for finding a account by it's id

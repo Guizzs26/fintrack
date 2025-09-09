@@ -265,8 +265,8 @@ func (a *Account) Unarchive() error {
 	return nil
 }
 
-// IncludeInOverallBalance sets the account to be included in overall balance calculations
-func (a *Account) IncludeAtOverallBalance() error {
+// EnableOverallBalance sets the account to be included in overall balance calculations
+func (a *Account) EnableOverallBalance() error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
 	}
@@ -281,7 +281,7 @@ func (a *Account) IncludeAtOverallBalance() error {
 }
 
 // ExcludeFromOverallBalance removes the account from overall balance calculations
-func (a *Account) ExcludeFromOverallBalance() error {
+func (a *Account) DisableOverallBalance() error {
 	if a.ArchivedAt != nil {
 		return ErrAccountArchived
 	}
@@ -295,21 +295,39 @@ func (a *Account) ExcludeFromOverallBalance() error {
 	return nil
 }
 
-// Transactions returns a copy of the account's transactions
-func (a *Account) Transactions() []Transaction {
-	txCopy := make([]Transaction, len(a.transactions))
-	copy(txCopy, a.transactions)
-	return txCopy
+// ChangeName is used to change the name of an already created account
+func (a *Account) ChangeName(name string) error {
+	if a.ArchivedAt != nil {
+		return ErrAccountArchived
+	}
+
+	if strings.TrimSpace(name) == "" {
+		return ErrAccountNameRequired
+	}
+	if utf8.RuneCountInString(name) > maxAccountNameLength {
+		return fmt.Errorf("account name cannot exceed %d characters", maxAccountNameLength)
+	}
+
+	a.Name = name
+	return nil
 }
 
 // GetArchivedAt returns the timestamp when the account was archived
 func (a *Account) GetArchivedAt() *time.Time {
+
 	if a.ArchivedAt == nil {
 		return nil
 	}
 
 	archivedCopy := *a.ArchivedAt
 	return &archivedCopy
+}
+
+// Transactions returns a copy of the account's transactions
+func (a *Account) Transactions() []Transaction {
+	txCopy := make([]Transaction, len(a.transactions))
+	copy(txCopy, a.transactions)
+	return txCopy
 }
 
 // findTransaction finds a transaction by its ID within the account
