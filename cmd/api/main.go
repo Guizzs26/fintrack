@@ -178,7 +178,7 @@ func customerErrorHandler(err error, c echo.Context) {
 	case errors.Is(err, ledger.ErrAccountArchived):
 		httpStatus = http.StatusForbidden
 		errCode = "FORBIDDEN"
-		errMsg = err.Error()
+		errMsg = ledger.ErrAccountArchived.Error()
 
 		// 409 Conflict
 	case errors.Is(err, ledger.ErrTransactionAlreadyPaid):

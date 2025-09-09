@@ -202,12 +202,12 @@ func (par *PostgresAccountRepository) FindByID(ctx context.Context, accountID uu
 
 	accModel, err := q.getAccountByID(ctx, accountID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find account: %w", err)
+		return nil, err
 	}
 
 	txModels, err := q.getTransactionsByAccountID(ctx, accountID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find transactions for account: %w", err)
+		return nil, err
 	}
 
 	account := toAccountDomain(accModel, txModels)

@@ -83,3 +83,13 @@ func (s *Service) AddTransactionToAccount(ctx context.Context, params AddTransac
 
 	return nil
 }
+
+// FindAccountByID is the use case for finding a account by it's id
+func (s *Service) FindAccountByID(ctx context.Context, accountID uuid.UUID) (*Account, error) {
+	account, err := s.accountRepo.FindByID(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find account by id: %w", err)
+	}
+
+	return account, nil
+}
