@@ -148,6 +148,24 @@ func (s *Service) ArchiveAccount(ctx context.Context, userID, accountID uuid.UUI
 	return nil
 }
 
+// UnarchiveAccount is the use case for unarchive an archived account (important use case with important business logic contribution)
+func (s *Service) UnarchiveAccount(ctx context.Context, userID, accountID uuid.UUID) (*Account, error) {
+	account, err := s.FindAccountByID(ctx, userID, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := account.Unarchive(); err != nil {
+		return nil, fmt.Errorf("failed to unarchive the account: %w", err)
+	}
+
+	if err := s.accountRepo.Save(ctx, account); err != nil {
+		return nil, fmt.Errorf("failed to save unarchived account: %w", err)
+	}
+
+	return account, nil
+}
+
 // AdjustAccountBalance is the use case for adjust the balance of an existing accoutn
 func (s *Service) AdjustAccountBalance(ctx context.Context, params BalanceAdjustmentParams) (*Account, error) {
 	account, err := s.FindAccountByID(ctx, params.UserID, params.AccountID)

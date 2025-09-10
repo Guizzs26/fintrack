@@ -33,6 +33,7 @@ func (h *LedgerHandler) RegisterRoutes(apiRouteGroup *echo.Group) {
 	accountsGroup.PUT("/:id", h.updateAccountHandler)
 	accountsGroup.POST("/:id/balance-adjustment", h.accountBalanceAdjustmentHandler)
 	accountsGroup.DELETE("/:id", h.archiveAccountHandler)
+	accountsGroup.POST("/:id/unarchive", h.unarchiveAccountHandler)
 	accountsGroup.GET("/:id", h.findAccountByIDHandler)
 	accountsGroup.GET("", h.findAccountsByUserIDHandler)
 }
@@ -225,6 +226,22 @@ func (h *LedgerHandler) archiveAccountHandler(c echo.Context) error {
 	}
 
 	return httpx.SendSuccess(c, http.StatusNoContent, nil)
+}
+
+// unarchiveAccountHandler handles HTTP request for unarchived a archived account
+func (h *LedgerHandler) unarchiveAccountHandler(c echo.Context) error {
+	accountID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid account ID format")
+	}
+
+	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
+	account, err := h.ledgerService.UnarchiveAccount(c.Request().Context(), mockUserID, accountID)
+	if err != nil {
+		return err
+	}
+
+	return httpx.SendSuccess(c, http.StatusOK, toAccountResponse(account))
 }
 
 // accountBalanceAdjustmentHandler handles HTTP request for adjust the balance of an existing account
