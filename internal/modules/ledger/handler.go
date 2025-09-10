@@ -28,10 +28,10 @@ func NewLedgerHandler(ledgerService *Service, clock clock.Clock) *LedgerHandler 
 func (h *LedgerHandler) RegisterRoutes(apiRouteGroup *echo.Group) {
 	accountsGroup := apiRouteGroup.Group("/accounts")
 
-	// POST /api/v1/accounts
 	accountsGroup.POST("", h.createAccountHandler)
 	accountsGroup.POST("/:id/transactions", h.addTransactionHandler)
 	accountsGroup.PUT("/:id", h.updateAccountHandler)
+	accountsGroup.POST("/:id/balance-adjustment", h.accountBalanceAdjustmentHandler)
 	accountsGroup.DELETE("/:id", h.archiveAccountHandler)
 	accountsGroup.GET("/:id", h.findAccountByIDHandler)
 	accountsGroup.GET("", h.findAccountsByUserIDHandler)
@@ -58,6 +58,11 @@ type AddTransactionRequest struct {
 type UpdateAccountRequest struct {
 	Name                    *string `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
 	IncludeInOverallBalance *bool   `json:"include_in_overall_balance,omitempty"`
+}
+
+// BalanceAdjustmentRequest defines the expected JSON body for adjust the account balance
+type BalanceAdjustmentRequest struct {
+	NewBalance int64 `json:"new_balance" validate:"required"`
 }
 
 // TransactionResponse defines the structure of an transaction returned by the API
@@ -184,11 +189,9 @@ func (h *LedgerHandler) updateAccountHandler(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body format")
 	}
-
 	if err := c.Validate(&req); err != nil {
 		return err
 	}
-
 	if req.Name == nil && req.IncludeInOverallBalance == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "at least one field must be provided for update")
 	}
@@ -221,7 +224,38 @@ func (h *LedgerHandler) archiveAccountHandler(c echo.Context) error {
 		return err
 	}
 
-	return c.NoContent(http.StatusNoContent)
+	return httpx.SendSuccess(c, http.StatusNoContent, nil)
+}
+
+// accountBalanceAdjustmentHandler handles HTTP request for adjust the balance of an existing account
+func (h *LedgerHandler) accountBalanceAdjustmentHandler(c echo.Context) error {
+	accountID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid account ID format")
+	}
+
+	var req BalanceAdjustmentRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
+	params := BalanceAdjustmentParams{
+		AccountID:  accountID,
+		UserID:     mockUserID,
+		NewBalance: req.NewBalance,
+	}
+
+	account, err := h.ledgerService.AdjustAccountBalance(c.Request().Context(), params)
+	if err != nil {
+		return err
+	}
+
+	return httpx.SendSuccess(c, http.StatusOK, toAccountDetailResponse(account, h.clock))
 }
 
 // findAccountByID handles the HTTP request for finding a account by id
@@ -231,14 +265,16 @@ func (h *LedgerHandler) findAccountByIDHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid account id format")
 	}
 
-	account, err := h.ledgerService.FindAccountByID(c.Request().Context(), accountID)
+	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
+	account, err := h.ledgerService.FindAccountByID(c.Request().Context(), mockUserID, accountID)
 	if err != nil {
 		return err
 	}
 
-	return httpx.SendSuccess(c, http.StatusOK, toAccountDetailResponse(account))
+	return httpx.SendSuccess(c, http.StatusOK, toAccountDetailResponse(account, h.clock))
 }
 
+// findAccountsByUserIDHandler handles the HTTP request for finding the account(s) by the user id
 func (h *LedgerHandler) findAccountsByUserIDHandler(c echo.Context) error {
 	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
 	accounts, err := h.ledgerService.FindAccountsByUserID(c.Request().Context(), mockUserID)
@@ -260,7 +296,7 @@ func toAccountResponse(a *Account) AccountResponse {
 }
 
 // toAccountDetailResponse maps the internal Account domain model to the public AccountDetailResponse DTO
-func toAccountDetailResponse(a *Account) AccountDetailResponse {
+func toAccountDetailResponse(a *Account, clock clock.Clock) AccountDetailResponse {
 	txs := a.Transactions()
 	txResponses := make([]TransactionResponse, len(txs))
 	for i, tx := range txs {
@@ -274,7 +310,6 @@ func toAccountDetailResponse(a *Account) AccountDetailResponse {
 		}
 	}
 
-	clock := clock.SystemClock{}
 	return AccountDetailResponse{
 		ID:                      a.ID,
 		Name:                    a.Name,

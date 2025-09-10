@@ -31,6 +31,13 @@ type UpdateAccountParams struct {
 	IncludeInOverallBalance *bool
 }
 
+// BalanceAdjustmentParams holds all the requires data for BalanceAdjustment use case
+type BalanceAdjustmentParams struct {
+	AccountID  uuid.UUID
+	UserID     uuid.UUID
+	NewBalance int64
+}
+
 // Service encapsulates the application's business logic (use cases) for the ledger module
 type Service struct {
 	accountRepo AccountRepository
@@ -61,14 +68,9 @@ func (s *Service) CreateAccount(ctx context.Context, userID uuid.UUID, name stri
 
 // AddTransactionToAccount is the use case for adding a new transaction to an existing account
 func (s *Service) AddTransactionToAccount(ctx context.Context, params AddTransactionParams) error {
-	account, err := s.accountRepo.FindByID(ctx, params.AccountID)
+	account, err := s.FindAccountByID(ctx, params.UserID, params.AccountID)
 	if err != nil {
 		return fmt.Errorf("failed to find account to add transaction: %w", err)
-	}
-
-	// Enforce authorization rule: user can only modify their own account (FUTURE AUTHn/AUTHz)
-	if account.UserID != params.UserID {
-		return errors.New("user does not have permission to access this account")
 	}
 
 	err = account.AddTransaction(
@@ -94,13 +96,9 @@ func (s *Service) AddTransactionToAccount(ctx context.Context, params AddTransac
 
 // UpdateAccount is the use case for update an existing account
 func (s *Service) UpdateAccount(ctx context.Context, params UpdateAccountParams) (*Account, error) {
-	account, err := s.FindAccountByID(ctx, params.AccountID)
+	account, err := s.FindAccountByID(ctx, params.UserID, params.AccountID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find account to update the account: %w", err)
-	}
-
-	if account.UserID != params.UserID {
-		return nil, errors.New("user does not have permission to access this account")
+		return nil, fmt.Errorf("failed to find account to update: %w", err)
 	}
 
 	if params.Name != nil {
@@ -134,13 +132,9 @@ func (s *Service) UpdateAccount(ctx context.Context, params UpdateAccountParams)
 
 // ArchiveAccount is the use case for archive an account (important use case with important business logic contribution)
 func (s *Service) ArchiveAccount(ctx context.Context, userID, accountID uuid.UUID) error {
-	account, err := s.FindAccountByID(ctx, accountID)
+	account, err := s.FindAccountByID(ctx, userID, accountID)
 	if err != nil {
-		return fmt.Errorf("failed to to find account to archive: %w", err)
-	}
-
-	if account.UserID != userID {
-		return errors.New("user does not have permission to access this account")
+		return fmt.Errorf("failed to find account to archive: %w", err)
 	}
 
 	if err := account.Archive(s.clock); err != nil {
@@ -154,11 +148,33 @@ func (s *Service) ArchiveAccount(ctx context.Context, userID, accountID uuid.UUI
 	return nil
 }
 
+// AdjustAccountBalance is the use case for adjust the balance of an existing accoutn
+func (s *Service) AdjustAccountBalance(ctx context.Context, params BalanceAdjustmentParams) (*Account, error) {
+	account, err := s.FindAccountByID(ctx, params.UserID, params.AccountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find account for balance adjustment: %w", err)
+	}
+
+	if err := account.AdjustBalance(params.NewBalance, s.clock); err != nil {
+		return nil, fmt.Errorf("failed to adjust account balance: %w", err)
+	}
+
+	if err := s.accountRepo.Save(ctx, account); err != nil {
+		return nil, fmt.Errorf("failed to save the adjusted account balance: %w", err)
+	}
+
+	return account, nil
+}
+
 // FindAccountByID is the use case for finding a account by it's id
-func (s *Service) FindAccountByID(ctx context.Context, accountID uuid.UUID) (*Account, error) {
+func (s *Service) FindAccountByID(ctx context.Context, userID, accountID uuid.UUID) (*Account, error) {
 	account, err := s.accountRepo.FindByID(ctx, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find account by id: %w", err)
+	}
+
+	if account.UserID != userID {
+		return nil, ErrAccountNotFound
 	}
 
 	return account, nil

@@ -301,6 +301,34 @@ func (a *Account) DisableOverallBalance() error {
 	return nil
 }
 
+// AdjustBalance adjusts an account balance before archiving, keeping a history of chagens as a transaction
+func (a *Account) AdjustBalance(newBalance int64, clock clock.Clock) error {
+	if a.ArchivedAt != nil {
+		return ErrAccountArchived
+	}
+
+	currentRealBalance := a.RealBalance(clock)
+	diff := newBalance - currentRealBalance
+
+	if diff == 0 {
+		return nil
+	}
+
+	now := clock.Now()
+	adjustmentTx := Transaction{
+		ID:          uuid.New(),
+		CategoryID:  nil,
+		Type:        Adjustment,
+		Amount:      diff,
+		Description: "Ajuste manual de saldo",
+		DueDate:     now,
+		PaidAt:      &now,
+	}
+
+	a.transactions = append(a.transactions, adjustmentTx)
+	return nil
+}
+
 // ChangeName is used to change the name of an already created account
 func (a *Account) ChangeName(name string) error {
 	if a.ArchivedAt != nil {
