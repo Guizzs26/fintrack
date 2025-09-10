@@ -32,6 +32,7 @@ func (h *LedgerHandler) RegisterRoutes(apiRouteGroup *echo.Group) {
 	accountsGroup.POST("", h.createAccountHandler)
 	accountsGroup.POST("/:id/transactions", h.addTransactionHandler)
 	accountsGroup.PUT("/:id", h.updateAccountHandler)
+	accountsGroup.DELETE("/:id", h.archiveAccountHandler)
 	accountsGroup.GET("/:id", h.findAccountByIDHandler)
 	accountsGroup.GET("", h.findAccountsByUserIDHandler)
 }
@@ -206,6 +207,21 @@ func (h *LedgerHandler) updateAccountHandler(c echo.Context) error {
 	}
 
 	return httpx.SendSuccess(c, http.StatusOK, toAccountResponse(account))
+}
+
+// archiveAccountHandler handles HTTP request for archive a existing account
+func (h *LedgerHandler) archiveAccountHandler(c echo.Context) error {
+	accountID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid account ID format")
+	}
+
+	mockUserID, _ := uuid.Parse("7e57d19c-5953-433c-9b57-d3d8e1f3b8b8")
+	if err := h.ledgerService.ArchiveAccount(c.Request().Context(), mockUserID, accountID); err != nil {
+		return err
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }
 
 // findAccountByID handles the HTTP request for finding a account by id

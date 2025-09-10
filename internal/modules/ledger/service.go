@@ -132,6 +132,28 @@ func (s *Service) UpdateAccount(ctx context.Context, params UpdateAccountParams)
 	return account, nil
 }
 
+// ArchiveAccount is the use case for archive an account (important use case with important business logic contribution)
+func (s *Service) ArchiveAccount(ctx context.Context, userID, accountID uuid.UUID) error {
+	account, err := s.FindAccountByID(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("failed to to find account to archive: %w", err)
+	}
+
+	if account.UserID != userID {
+		return errors.New("user does not have permission to access this account")
+	}
+
+	if err := account.Archive(s.clock); err != nil {
+		return fmt.Errorf("failed to archive account: %w", err)
+	}
+
+	if err := s.accountRepo.Save(ctx, account); err != nil {
+		return fmt.Errorf("failed to save archived account state: %w", err)
+	}
+
+	return nil
+}
+
 // FindAccountByID is the use case for finding a account by it's id
 func (s *Service) FindAccountByID(ctx context.Context, accountID uuid.UUID) (*Account, error) {
 	account, err := s.accountRepo.FindByID(ctx, accountID)

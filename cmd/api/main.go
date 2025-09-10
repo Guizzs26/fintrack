@@ -179,6 +179,10 @@ func customerErrorHandler(err error, c echo.Context) {
 		httpStatus = http.StatusForbidden
 		errCode = "FORBIDDEN"
 		errMsg = ledger.ErrAccountArchived.Error()
+	case errors.Is(err, ledger.ErrAccountAlreadyArchived):
+		httpStatus = http.StatusForbidden
+		errCode = "FORBIDDEN"
+		errMsg = ledger.ErrAccountArchived.Error()
 
 		// 409 Conflict
 	case errors.Is(err, ledger.ErrTransactionAlreadyPaid):
@@ -201,6 +205,10 @@ func customerErrorHandler(err error, c echo.Context) {
 		httpStatus = http.StatusConflict
 		errCode = "STATE_CONFLICT"
 		errMsg = ledger.ErrAccountNotArchived.Error()
+	case errors.Is(err, ledger.ErrAccountBalanceMustBeZero):
+		httpStatus = http.StatusConflict
+		errCode = "STATE_CONFLICT"
+		errMsg = ledger.ErrAccountBalanceMustBeZero.Error()
 
 		// 422 Unprocessable Entity
 	case errors.Is(err, ledger.ErrAccountNameRequired):
