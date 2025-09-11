@@ -13,21 +13,21 @@ import (
 )
 
 var (
-	ErrAccountArchived          = errors.New("account is archived")
-	ErrAccountAlreadyArchived   = errors.New("account is already archived")
-	ErrAccountNotArchived       = errors.New("account is not archived")
-	ErrTransactionNotFound      = errors.New("transaction not found in this account")
-	ErrTransactionAlreadyPaid   = errors.New("transaction is already marked as paid")
-	ErrTransactionAlreadyUnpaid = errors.New("transaction is already marked as unpaid")
-	ErrPaymentDateInFuture      = errors.New("payment date cannot be in the future")
-	ErrAmountCannotBeZero       = errors.New("transaction amount cannot be zero")
-	ErrAccountBalanceMustBeZero = errors.New("account real balance must be zero")
-	ErrDescriptionRequired      = errors.New("transaction description is required")
-	ErrAccountNameRequired      = errors.New("account name is required")
-	ErrInconsistentAmountSign   = errors.New("transaction amount sign is inconsistent with its type")
-	ErrInvalidTransactionType   = errors.New("invalid transaction type")
-	ErrAccountAlreadyIncluded   = errors.New("account is already included in overall balance")
-	ErrAccountAlreadyExcluded   = errors.New("account is already excluded from overall balance")
+	ErrAccountArchived                   = errors.New("account is archived")
+	ErrAccountAlreadyArchived            = errors.New("account is already archived")
+	ErrAccountNotArchived                = errors.New("account is not archived")
+	ErrTransactionNotFound               = errors.New("transaction not found in this account")
+	ErrTransactionAlreadyPaid            = errors.New("transaction is already marked as paid")
+	ErrTransactionAlreadyUnpaid          = errors.New("transaction is already marked as unpaid")
+	ErrPaymentDateInFuture               = errors.New("payment date cannot be in the future")
+	ErrAmountCannotBeZero                = errors.New("transaction amount cannot be zero")
+	ErrAccountBalanceMustBeZeroToArchive = errors.New("account real balance must be zero")
+	ErrDescriptionRequired               = errors.New("transaction description is required")
+	ErrAccountNameRequired               = errors.New("account name is required")
+	ErrInconsistentAmountSign            = errors.New("transaction amount sign is inconsistent with its type")
+	ErrInvalidTransactionType            = errors.New("invalid transaction type")
+	ErrAccountAlreadyIncluded            = errors.New("account is already included in overall balance")
+	ErrAccountAlreadyExcluded            = errors.New("account is already excluded from overall balance")
 )
 
 const (
@@ -248,8 +248,8 @@ func (a *Account) Archive(clock clock.Clock) error {
 		return ErrAccountAlreadyArchived
 	}
 
-	if a.RealBalance(clock) > 0 {
-		return ErrAccountBalanceMustBeZero
+	if a.ProjectedBalance() != 0 {
+		return ErrAccountBalanceMustBeZeroToArchive
 	}
 
 	now := clock.Now()
@@ -307,8 +307,8 @@ func (a *Account) AdjustBalance(newBalance int64, clock clock.Clock) error {
 		return ErrAccountArchived
 	}
 
-	currentRealBalance := a.RealBalance(clock)
-	diff := newBalance - currentRealBalance
+	currentBalance := a.ProjectedBalance()
+	diff := newBalance - currentBalance
 
 	if diff == 0 {
 		return nil

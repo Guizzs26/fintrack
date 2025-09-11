@@ -205,10 +205,10 @@ func customerErrorHandler(err error, c echo.Context) {
 		httpStatus = http.StatusConflict
 		errCode = "STATE_CONFLICT"
 		errMsg = ledger.ErrAccountNotArchived.Error()
-	case errors.Is(err, ledger.ErrAccountBalanceMustBeZero):
+	case errors.Is(err, ledger.ErrAccountBalanceMustBeZeroToArchive):
 		httpStatus = http.StatusConflict
 		errCode = "STATE_CONFLICT"
-		errMsg = ledger.ErrAccountBalanceMustBeZero.Error()
+		errMsg = ledger.ErrAccountBalanceMustBeZeroToArchive.Error()
 
 		// 422 Unprocessable Entity
 	case errors.Is(err, ledger.ErrAccountNameRequired):

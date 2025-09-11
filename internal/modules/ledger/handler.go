@@ -63,7 +63,7 @@ type UpdateAccountRequest struct {
 
 // BalanceAdjustmentRequest defines the expected JSON body for adjust the account balance
 type BalanceAdjustmentRequest struct {
-	NewBalance int64 `json:"new_balance" validate:"required"`
+	NewBalance *int64 `json:"new_balance" validate:"required,gte=0"`
 }
 
 // TransactionResponse defines the structure of an transaction returned by the API
@@ -264,7 +264,7 @@ func (h *LedgerHandler) accountBalanceAdjustmentHandler(c echo.Context) error {
 	params := BalanceAdjustmentParams{
 		AccountID:  accountID,
 		UserID:     mockUserID,
-		NewBalance: req.NewBalance,
+		NewBalance: *req.NewBalance,
 	}
 
 	account, err := h.ledgerService.AdjustAccountBalance(c.Request().Context(), params)
