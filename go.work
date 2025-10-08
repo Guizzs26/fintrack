@@ -1,0 +1,7 @@
+go 1.25.0
+
+use (
+	./pkg
+	./services/identity-service
+	./services/ledger-service
+)

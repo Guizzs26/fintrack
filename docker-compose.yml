@@ -1,34 +1,86 @@
 services:
-  pg_fintrack:
-    image: postgres:17.6
-    container_name: pg_fintrack
+  # --- PostgreSQL database for ledger-service ---
+  fintrack-postgres:
+    image: postgres:17.6-alpine
+    container_name: fintrack-postgres
     restart: on-failure
-    env_file: .env
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=fintrackuser
+      - POSTGRES_PASSWORD=fintrackpass
+      - POSTGRES_DB=fintrack_ledger_db
     ports:
-      - '${DB_PORT}:5432'
+      - "5433:5432"
     volumes:
-      - fintrack_data:/var/lib/postgresql/data
+      - fintrack_pgdata:/var/lib/postgresql/data
     networks:
-      - fintrack_network
-    healthcheck:
-      test: [
-        'CMD-SHELL', 
-        "psql -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1' || exit 1"
-      ]
-      interval: 10s
-      timeout: 15s
-      retries: 5
-    logging:
-      options:
-        max-size: '10m'
-        max-file: '3'
+      - fintrack-network
+
+  # --- DynamoDB database for identity-service ---
+  fintrack-dynamodb:
+    image: amazon/dynamodb-local:3.0.0
+    container_name: fintrack-dynamodb
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ."
+    ports:
+      - "8000:8000"
+    volumes:
+      - fintrack_dynamodata:/home/dynamodblocal/data
+    networks:
+      - fintrack-network
+
+  # --- cache for ledger-service ---
+  fintrack-redis:
+    image: redis:8.2-alpine
+    container_name: fintrack-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - fintrack_redisdata:/data
+    networks:
+      - fintrack-network
+
+  # --- message broker for asynchronous jobs ---
+  fintrack-rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    container_name: fintrack-rabbitmq
+    ports:
+      - "5672:5672" # AMPQ protocol
+      - "15672:15672" # UI management
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - fintrack-network
+
+  # --- event bus for inter-services communication ---
+  fintrack-kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: fintrack-kafka
+    ports:
+      - "9092:9092"
+    volumes:
+      - fintrack_kafkadata:/var/lib/kafka/data
+    networks:
+      - fintrack-network
+    environment:
+      KAFKA_NODE_ID: 1
+      CLUSTER_ID: "dvJLs34OTEinIY_ifrwrZw"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@fintrack-kafka:9093"
+      KAFKA_LISTENERS: "INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://fintrack-kafka:9093"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://fintrack-kafka:29092,EXTERNAL://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
 
 volumes:
-  fintrack_data:
+  fintrack_pgdata:
+  fintrack_dynamodata:
+  fintrack_redisdata:
+  fintrack_kafkadata:
 
 networks:
-  fintrack_network:
+  fintrack-network:
+    driver: bridge
