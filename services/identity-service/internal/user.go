@@ -38,7 +38,7 @@ type User struct {
 type RefreshToken struct {
 	TokenHash string    `dynamodbav:"TokenHash"`
 	UserID    uuid.UUID `dynamodbav:"UserID"`
-	ExpiresAt time.Time `dynamodbav:"ExpiresAt"`
+	ExpiresAt int64     `dynamodbav:"ExpiresAt"`
 }
 
 func (u *User) ComparePassword(password string) error {

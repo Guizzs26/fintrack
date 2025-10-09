@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -31,21 +32,59 @@ func NewDynamoDBUserRepository(c *dynamodb.Client, tn string) *DynamoDBUserRepos
 func (r *DynamoDBUserRepository) Save(ctx context.Context, user *User) error {
 	log := ctxlogger.GetLogger(ctx)
 
-	// marshal Go struct into a map of DynamoDB attribute values
-	item, err := attributevalue.MarshalMap(user)
-	if err != nil {
-		return fmt.Errorf("failed to marshal user for dynamodb: %v", err)
-	}
+	isNewUser := user.CreatedAt.IsZero()
+	if isNewUser {
+		// marshal Go struct into a map of DynamoDB attribute values
+		item, err := attributevalue.MarshalMap(user)
+		if err != nil {
+			return fmt.Errorf("failed to marshal user for dynamodb: %v", err)
+		}
 
-	// create the input for the PutItem operation
-	input := &dynamodb.PutItemInput{
-		TableName: &r.tableName,
-		Item:      item,
-	}
+		// create the input for the PutItem operation
+		input := &dynamodb.PutItemInput{
+			TableName:           &r.tableName,
+			Item:                item,
+			ConditionExpression: aws.String("attribute_not_exists(Email)"),
+		}
 
-	log.Debug("saving user to dynamodb", slog.Any("item", item))
-	if _, err := r.client.PutItem(ctx, input); err != nil {
-		return fmt.Errorf("failed to save user to dynamodb: %v", err)
+		log.Debug("creating new user in dynamodb", slog.Any("item", item))
+		if _, err := r.client.PutItem(ctx, input); err != nil {
+			var condErr *types.ConditionalCheckFailedException
+			if errors.As(err, &condErr) {
+				return ErrEmailAlreadyInUse
+			}
+			return fmt.Errorf("failed to create user to dynamodb: %v", err)
+		}
+	} else {
+		log.Debug("updating existing user in dynamodb", slog.String("user_id", user.ID.String()))
+		updateExpr := "SET #name = :name, #pwhash = :pwhash, #ua = :ua"
+		exprAttrNames := map[string]string{
+			"#name":   "Name",
+			"#pwhash": "PasswordHash",
+			"#ua":     "UpdatedAt",
+		}
+		exprAttrValues, err := attributevalue.MarshalMap(map[string]interface{}{
+			":name":   user.Name,
+			":pwhash": user.PasswordHash,
+			":ua":     user.UpdatedAt,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to marshal update values for dynamodb: %v", err)
+		}
+
+		input := &dynamodb.UpdateItemInput{
+			TableName: &r.tableName,
+			Key: map[string]types.AttributeValue{
+				"ID": &types.AttributeValueMemberS{Value: user.ID.String()},
+			},
+			UpdateExpression:          aws.String(updateExpr),
+			ExpressionAttributeNames:  exprAttrNames,
+			ExpressionAttributeValues: exprAttrValues,
+		}
+
+		if _, err := r.client.UpdateItem(ctx, input); err != nil {
+			return fmt.Errorf("failed to update user in dynamodb: %v", err)
+		}
 	}
 
 	return nil
@@ -78,6 +117,7 @@ func (r *DynamoDBUserRepository) FindByEmail(ctx context.Context, email string) 
 		return nil, ErrUserNotFound
 	}
 
+	// !!! critical !!!
 	if len(output.Items) > 1 {
 		log.Warn("found multiple users with the same email", slog.String("email", email))
 	}

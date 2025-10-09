@@ -91,7 +91,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (accesToken
 	rt := &RefreshToken{
 		TokenHash: refreshTokenHash,
 		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(refreshTokenTTL),
+		ExpiresAt: time.Now().Add(refreshTokenTTL).Unix(),
 	}
 
 	// for now, lets assume the token repo exists
@@ -121,10 +121,11 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (string
 		return "", "", fmt.Errorf("failed to generate new refresh token: %v", err)
 	}
 
+	refreshTokenTTL := time.Hour * 24 * 7
 	rt := &RefreshToken{
 		TokenHash: newRefreshTokenHash,
 		UserID:    userID,
-		ExpiresAt: time.Now().Add(time.Hour * 24 * 7),
+		ExpiresAt: time.Now().Add(refreshTokenTTL).Unix(),
 	}
 
 	if err := s.tokenRepo.Save(ctx, rt); err != nil {

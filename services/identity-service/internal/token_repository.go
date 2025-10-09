@@ -3,8 +3,9 @@ package identity
 import (
 	"context"
 	"fmt"
-	"time"
+	"log/slog"
 
+	ctxlogger "github.com/Guizzs26/fintrack/pkg/logger/context"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -18,7 +19,7 @@ type tokenItem struct {
 	SK        string    `dynamodbav:"SK"` // Format: TOKEN#<TokenHash>
 	UserID    uuid.UUID `dynamodbav:"UserID"`
 	TokenHash string    `dynamodbav:"TokenHash"`
-	ExpiresAt time.Time `dynamodbav:"ExpiresAt"`
+	ExpiresAt int64     `dynamodbav:"ExpiresAt"`
 }
 
 var _ TokenRepository = (*DynamoDBTokenRepository)(nil)
@@ -61,6 +62,7 @@ func (r *DynamoDBTokenRepository) Save(ctx context.Context, token *RefreshToken)
 	return nil
 }
 
+// revoke a refresh token - usign 'read-then-write' pattern
 func (r *DynamoDBTokenRepository) Revoke(ctx context.Context, tokenHash string) (uuid.UUID, error) {
 	// use GSI to find the full token item
 	queryInput := &dynamodb.QueryInput{
@@ -102,6 +104,8 @@ func (r *DynamoDBTokenRepository) Revoke(ctx context.Context, tokenHash string) 
 }
 
 func (r *DynamoDBTokenRepository) RevokeAllForUser(ctx context.Context, userID uuid.UUID) error {
+	log := ctxlogger.GetLogger(ctx)
+
 	pk := fmt.Sprintf("USER#%s", userID)
 	queryInput := &dynamodb.QueryInput{
 		TableName:              &r.tableName,
@@ -111,32 +115,58 @@ func (r *DynamoDBTokenRepository) RevokeAllForUser(ctx context.Context, userID u
 			":sk_prefix": &types.AttributeValueMemberS{Value: "TOKEN#"},
 		},
 	}
-	output, err := r.client.Query(ctx, queryInput)
-	if err != nil {
-		return fmt.Errorf("failed to query tokens for user: %v", err)
+	paginator := dynamodb.NewQueryPaginator(r.client, queryInput)
+
+	var writeRequests []types.WriteRequest
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to query tokens for user: %v", err)
+		}
+
+		for _, item := range output.Items {
+			writeRequests = append(writeRequests, types.WriteRequest{
+				DeleteRequest: &types.DeleteRequest{
+					Key: map[string]types.AttributeValue{
+						"PK": item["PK"],
+						"SK": item["SK"],
+					},
+				},
+			})
+		}
 	}
 
-	if len(output.Items) == 0 {
+	if len(writeRequests) == 0 {
 		return nil
 	}
 
-	var writeRequests []types.WriteRequest
-	for _, i := range output.Items {
-		writeRequests = append(writeRequests, types.WriteRequest{
-			DeleteRequest: &types.DeleteRequest{
-				Key: map[string]types.AttributeValue{
-					"PK": i["PK"],
-					"SK": i["SK"],
-				},
+	log.Debug("revoking all refresh tokens for user", slog.String("user_id", userID.String()), slog.Int("token_count", len(writeRequests)))
+	const maxBatchSize = 25
+	for i := 0; i < len(writeRequests); i += maxBatchSize {
+		end := min(i+maxBatchSize, len(writeRequests))
+		chunk := writeRequests[i:end]
+
+		batchInput := &dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]types.WriteRequest{
+				r.tableName: chunk,
 			},
-		})
+		}
+
+		output, err := r.client.BatchWriteItem(ctx, batchInput)
+		if err != nil {
+			return fmt.Errorf("failed to batch delete tokens: %v", err)
+		}
+
+		// Handle unprocessed items (simplified approach with logging).
+		// In the future, we may have retry logic here.
+		if len(output.UnprocessedItems) > 0 {
+			unprocessedCount := len(output.UnprocessedItems[r.tableName])
+			log.Warn("some tokens were not processed in batch delete and will be orphaned",
+				slog.Int("unprocessed_count", unprocessedCount),
+				slog.String("user_id", userID.String()),
+			)
+		}
 	}
 
-	_, err = r.client.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: map[string][]types.WriteRequest{
-			r.tableName: writeRequests,
-		},
-	})
-
-	return err
+	return nil
 }
