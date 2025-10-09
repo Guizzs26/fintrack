@@ -1,0 +1,17 @@
+syntax = "proto3";
+package identity.v1;
+option go_package = "github.com/Guizzs26/fintrack/gen/go/identity/v1;identityv1";
+
+service IdentityService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+}
+
+message RegisterRequest {
+  string name = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message RegisterResponse {
+  string user_id = 1;
+}
