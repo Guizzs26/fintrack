@@ -19,10 +19,10 @@ type UserRepository interface {
 }
 
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"password_hash"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           uuid.UUID `dynamodbav:"ID"`
+	Name         string    `dynamodbav:"Name"`
+	Email        string    `dynamodbav:"Email"`
+	PasswordHash string    `dynamodbav:"PasswordHash"`
+	CreatedAt    time.Time `dynamodbav:"CreatedAt"`
+	UpdatedAt    time.Time `dynamodbav:"UpdatedAt"`
 }

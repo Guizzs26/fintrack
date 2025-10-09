@@ -12,6 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+var _ UserRepository = (*DynamoDBUserRepository)(nil)
+
 // DynamoDBUserRepository is a DynamoDB implementation of the UserRepository interface
 type DynamoDBUserRepository struct {
 	client    *dynamodb.Client
@@ -25,7 +27,7 @@ func NewDynamoDBUserRepository(c *dynamodb.Client, tn string) *DynamoDBUserRepos
 	}
 }
 
-// Save persists a new or updated user to DynamoD
+// Save persists a new or updated user to DynamoDb (upsert-like)
 func (r *DynamoDBUserRepository) Save(ctx context.Context, user *User) error {
 	log := ctxlogger.GetLogger(ctx)
 
@@ -57,7 +59,7 @@ func (r *DynamoDBUserRepository) FindByEmail(ctx context.Context, email string) 
 	input := &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		IndexName:              aws.String("EmailIndex"),
-		KeyConditionExpression: aws.String("#email = :email"),
+		KeyConditionExpression: aws.String("Email = :email"),
 		ExpressionAttributeNames: map[string]string{
 			"#email": "Email",
 		},
