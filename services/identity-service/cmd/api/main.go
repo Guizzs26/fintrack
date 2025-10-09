@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"time"
 
 	identityv1 "github.com/Guizzs26/fintrack/services/identity-service/gen/go"
 	identity "github.com/Guizzs26/fintrack/services/identity-service/internal"
@@ -24,10 +25,13 @@ func main() {
 		log.Fatalf("failed to create dynamodb client: %v", err)
 	}
 
+	jwtSecret := "as0dasoidjaodiaus0e912ijkxkkkkkkkkkk"
+	accessTokenTTL := time.Minute * 15
+	tokenManager := identity.NewJWTManager(jwtSecret, accessTokenTTL)
 	tableName := "FintrackUsers"
 	repo := identity.NewDynamoDBUserRepository(dbClient, tableName)
 	publisher := &InMemoryPublisher{}
-	service := identity.NewService(repo, publisher)
+	service := identity.NewService(repo, nil, tokenManager, publisher)
 	handler := identity.NewServer(service)
 	grpcServer := grpc.NewServer()
 

@@ -15,14 +15,23 @@ type EventPublisher interface {
 }
 
 type Service struct {
-	repo      UserRepository
-	publisher EventPublisher
+	repo         UserRepository
+	tokenRepo    TokenRepository
+	publisher    EventPublisher
+	tokenManager *JWTManager
 }
 
-func NewService(r UserRepository, p EventPublisher) *Service {
+func NewService(
+	r UserRepository,
+	tk TokenRepository,
+	tm *JWTManager,
+	p EventPublisher,
+) *Service {
 	return &Service{
-		repo:      r,
-		publisher: p,
+		repo:         r,
+		tokenRepo:    tk,
+		tokenManager: tm,
+		publisher:    p,
 	}
 }
 
@@ -54,4 +63,39 @@ func (s *Service) Register(ctx context.Context, name, email, password string) (*
 	// TODO -> Publish event in kafka
 
 	return user, nil
+}
+
+func (s *Service) Login(ctx context.Context, email, password string) (accesToken, refreshToken string, err error) {
+	user, err := s.repo.FindByEmail(ctx, email)
+	if err != nil {
+		return "", "", fmt.Errorf("authentication failed: %w", ErrUserNotFound)
+	}
+
+	if err := user.ComparePassword(password); err != nil {
+		return "", "", fmt.Errorf("authentication failed: %v", err)
+	}
+
+	accessToken, err := s.tokenManager.Generate(user.ID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate access token: %v", err)
+	}
+
+	refreshToken, refreshTokenHash, err := GenerateRefreshToken()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate refresh token: %v", err)
+	}
+
+	refreshTokenTTL := time.Hour * 24 * 7 // 7 days
+	rt := &RefreshToken{
+		TokenHash: refreshTokenHash,
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(refreshTokenTTL),
+	}
+
+	// for now, lets assume the token repo exists
+	if err := s.tokenRepo.Save(ctx, rt); err != nil {
+		return "", "", fmt.Errorf("failed to save refresh token: %v", err)
+	}
+
+	return accessToken, refreshToken, nil
 }

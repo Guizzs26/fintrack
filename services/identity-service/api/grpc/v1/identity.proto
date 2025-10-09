@@ -4,6 +4,7 @@ option go_package = "github.com/Guizzs26/fintrack/gen/go/identity/v1;identityv1"
 
 service IdentityService {
   rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
 }
 
 message RegisterRequest {
@@ -14,4 +15,14 @@ message RegisterRequest {
 
 message RegisterResponse {
   string user_id = 1;
+}
+
+message LoginRequest{
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse{
+  string access_token = 1;
+  string refresh_token = 2;
 }

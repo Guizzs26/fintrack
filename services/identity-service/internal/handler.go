@@ -33,3 +33,22 @@ func (s *Server) Register(ctx context.Context, req *identityv1.RegisterRequest) 
 
 	return &identityv1.RegisterResponse{UserId: user.ID.String()}, nil
 }
+
+func (s *Server) Login(ctx context.Context, req *identityv1.LoginRequest) (*identityv1.LoginResponse, error) {
+	if req.GetEmail() == "" || req.GetPassword() == "" {
+		return nil, status.Error(codes.InvalidArgument, "email and password are required")
+	}
+
+	accessToken, refreshToken, err := s.service.Login(ctx, req.GetEmail(), req.GetPassword())
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return nil, status.Error(codes.Unauthenticated, "invalid credentials")
+		}
+		return nil, status.Error(codes.Internal, "failed to login user")
+	}
+
+	return &identityv1.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}

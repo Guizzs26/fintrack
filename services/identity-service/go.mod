@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/Guizzs26/fintrack v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.51.0
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	golang.org/x/crypto v0.42.0
 	google.golang.org/grpc v1.76.0
