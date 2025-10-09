@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/Guizzs26/fintrack/internal/platform/config"
+	"github.com/Guizzs26/fintrack/services/ledger-service/internal/platform/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

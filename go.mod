@@ -1,4 +1,4 @@
-module github.com/Guizzs26/fintrack/pkg
+module github.com/Guizzs26/fintrack
 
 go 1.25.0
 
