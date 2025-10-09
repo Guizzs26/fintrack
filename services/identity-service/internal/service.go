@@ -106,14 +106,10 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (string
 	hash := sha256.Sum256([]byte(refreshToken))
 	tokenHash := hex.EncodeToString(hash[:])
 
-	if err := s.tokenRepo.Revoke(ctx, tokenHash); err != nil {
+	userID, err := s.tokenRepo.Revoke(ctx, tokenHash)
+	if err != nil {
 		return "", "", fmt.Errorf("invalid refresh token: %v", err)
 	}
-
-	// TODO: Before generating a new one, we should get the UserID of the revoked token
-	// to know who to issue the new one to. The current Revoke implementation doesn't return the UserID.
-	// For now, let's assume we have the UserID.
-	var userID uuid.UUID
 
 	newAccessToken, err := s.tokenManager.Generate(userID)
 	if err != nil {

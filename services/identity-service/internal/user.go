@@ -22,7 +22,7 @@ type UserRepository interface {
 
 type TokenRepository interface {
 	Save(ctx context.Context, token *RefreshToken) error
-	Revoke(ctx context.Context, tokenHash string) error
+	Revoke(ctx context.Context, tokenHash string) (uuid.UUID, error)
 }
 
 type User struct {

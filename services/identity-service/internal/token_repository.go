@@ -61,8 +61,8 @@ func (r *DynamoDBTokenRepository) Save(ctx context.Context, token *RefreshToken)
 	return nil
 }
 
-func (r *DynamoDBTokenRepository) Revoke(ctx context.Context, tokenHash string) error {
-	// use GSI to find the full primary key of the item
+func (r *DynamoDBTokenRepository) Revoke(ctx context.Context, tokenHash string) (uuid.UUID, error) {
+	// use GSI to find the full token item
 	queryInput := &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		IndexName:              aws.String("TokenHashIndex"), // GSI to be created
@@ -74,15 +74,15 @@ func (r *DynamoDBTokenRepository) Revoke(ctx context.Context, tokenHash string) 
 
 	output, err := r.client.Query(ctx, queryInput)
 	if err != nil {
-		return fmt.Errorf("failed to query token by hash: %v", err)
+		return uuid.Nil, fmt.Errorf("failed to query token by hash: %v", err)
 	}
 	if len(output.Items) == 0 {
-		return fmt.Errorf("token not found")
+		return uuid.Nil, fmt.Errorf("token not found")
 	}
 
 	var item tokenItem
 	if err := attributevalue.UnmarshalMap(output.Items[0], &item); err != nil {
-		return fmt.Errorf("failed to unmarshal token item: %v", err)
+		return uuid.Nil, fmt.Errorf("failed to unmarshal token item: %v", err)
 	}
 
 	// delet the item using its full primary key (PK and SK)
@@ -95,8 +95,8 @@ func (r *DynamoDBTokenRepository) Revoke(ctx context.Context, tokenHash string) 
 	}
 
 	if _, err := r.client.DeleteItem(ctx, deleteInput); err != nil {
-		return fmt.Errorf("failed to delete token: %v", err)
+		return uuid.Nil, fmt.Errorf("failed to delete token: %v", err)
 	}
 
-	return nil
+	return item.UserID, nil
 }
