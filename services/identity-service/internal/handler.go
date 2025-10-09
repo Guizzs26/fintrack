@@ -52,3 +52,19 @@ func (s *Server) Login(ctx context.Context, req *identityv1.LoginRequest) (*iden
 		RefreshToken: refreshToken,
 	}, nil
 }
+
+func (s *Server) RefreshToken(ctx context.Context, req *identityv1.RefreshTokenRequest) (*identityv1.LoginResponse, error) {
+	if req.GetRefreshToken() == "" {
+		return nil, status.Error(codes.InvalidArgument, "refresh token is required")
+	}
+
+	newAccessToken, newRefreshToken, err := s.service.RefreshToken(ctx, req.GetRefreshToken())
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
+	}
+
+	return &identityv1.LoginResponse{
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshToken,
+	}, nil
+}

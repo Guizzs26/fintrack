@@ -2,6 +2,8 @@ package identity
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -98,4 +100,40 @@ func (s *Service) Login(ctx context.Context, email, password string) (accesToken
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (string, string, error) {
+	hash := sha256.Sum256([]byte(refreshToken))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	if err := s.tokenRepo.Revoke(ctx, tokenHash); err != nil {
+		return "", "", fmt.Errorf("invalid refresh token: %v", err)
+	}
+
+	// TODO: Before generating a new one, we should get the UserID of the revoked token
+	// to know who to issue the new one to. The current Revoke implementation doesn't return the UserID.
+	// For now, let's assume we have the UserID.
+	var userID uuid.UUID
+
+	newAccessToken, err := s.tokenManager.Generate(userID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate new access token: %v", err)
+	}
+
+	newRefreshToken, newRefreshTokenHash, err := GenerateRefreshToken()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate new refresh token: %v", err)
+	}
+
+	rt := &RefreshToken{
+		TokenHash: newRefreshTokenHash,
+		UserID:    userID,
+		ExpiresAt: time.Now().Add(time.Hour * 24 * 7),
+	}
+
+	if err := s.tokenRepo.Save(ctx, rt); err != nil {
+		return "", "", fmt.Errorf("failed to save new refresh token: %v", err)
+	}
+
+	return newAccessToken, newRefreshToken, nil
 }

@@ -29,9 +29,10 @@ func main() {
 	accessTokenTTL := time.Minute * 15
 	tokenManager := identity.NewJWTManager(jwtSecret, accessTokenTTL)
 	tableName := "FintrackUsers"
-	repo := identity.NewDynamoDBUserRepository(dbClient, tableName)
+	userRepo := identity.NewDynamoDBUserRepository(dbClient, tableName)
+	tokenRepo := identity.NewDynamoDBTokenRepository(dbClient, tableName)
 	publisher := &InMemoryPublisher{}
-	service := identity.NewService(repo, nil, tokenManager, publisher)
+	service := identity.NewService(userRepo, tokenRepo, tokenManager, publisher)
 	handler := identity.NewServer(service)
 	grpcServer := grpc.NewServer()
 

@@ -9,6 +9,7 @@ package identityv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -229,11 +230,55 @@ func (x *LoginResponse) GetRefreshToken() string {
 	return ""
 }
 
+type RefreshTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshTokenRequest) Reset() {
+	*x = RefreshTokenRequest{}
+	mi := &file_identity_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshTokenRequest) ProtoMessage() {}
+
+func (x *RefreshTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshTokenRequest.ProtoReflect.Descriptor instead.
+func (*RefreshTokenRequest) Descriptor() ([]byte, []int) {
+	return file_identity_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RefreshTokenRequest) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
+	}
+	return ""
+}
+
 var File_identity_proto protoreflect.FileDescriptor
 
 const file_identity_proto_rawDesc = "" +
 	"\n" +
-	"\x0eidentity.proto\x12\videntity.v1\"W\n" +
+	"\x0eidentity.proto\x12\videntity.v1\x1a\x1bgoogle/protobuf/empty.proto\"W\n" +
 	"\x0fRegisterRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -245,10 +290,14 @@ const file_identity_proto_rawDesc = "" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"W\n" +
 	"\rLoginResponse\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12#\n" +
-	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken2\x9a\x01\n" +
+	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\":\n" +
+	"\x13RefreshTokenRequest\x12#\n" +
+	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken2\xa2\x02\n" +
 	"\x0fIdentityService\x12G\n" +
 	"\bRegister\x12\x1c.identity.v1.RegisterRequest\x1a\x1d.identity.v1.RegisterResponse\x12>\n" +
-	"\x05Login\x12\x19.identity.v1.LoginRequest\x1a\x1a.identity.v1.LoginResponseB<Z:github.com/Guizzs26/fintrack/gen/go/identity/v1;identityv1b\x06proto3"
+	"\x05Login\x12\x19.identity.v1.LoginRequest\x1a\x1a.identity.v1.LoginResponse\x12L\n" +
+	"\fRefreshToken\x12 .identity.v1.RefreshTokenRequest\x1a\x1a.identity.v1.LoginResponse\x128\n" +
+	"\x06Logout\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.EmptyB<Z:github.com/Guizzs26/fintrack/gen/go/identity/v1;identityv1b\x06proto3"
 
 var (
 	file_identity_proto_rawDescOnce sync.Once
@@ -262,20 +311,26 @@ func file_identity_proto_rawDescGZIP() []byte {
 	return file_identity_proto_rawDescData
 }
 
-var file_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_identity_proto_goTypes = []any{
-	(*RegisterRequest)(nil),  // 0: identity.v1.RegisterRequest
-	(*RegisterResponse)(nil), // 1: identity.v1.RegisterResponse
-	(*LoginRequest)(nil),     // 2: identity.v1.LoginRequest
-	(*LoginResponse)(nil),    // 3: identity.v1.LoginResponse
+	(*RegisterRequest)(nil),     // 0: identity.v1.RegisterRequest
+	(*RegisterResponse)(nil),    // 1: identity.v1.RegisterResponse
+	(*LoginRequest)(nil),        // 2: identity.v1.LoginRequest
+	(*LoginResponse)(nil),       // 3: identity.v1.LoginResponse
+	(*RefreshTokenRequest)(nil), // 4: identity.v1.RefreshTokenRequest
+	(*emptypb.Empty)(nil),       // 5: google.protobuf.Empty
 }
 var file_identity_proto_depIdxs = []int32{
 	0, // 0: identity.v1.IdentityService.Register:input_type -> identity.v1.RegisterRequest
 	2, // 1: identity.v1.IdentityService.Login:input_type -> identity.v1.LoginRequest
-	1, // 2: identity.v1.IdentityService.Register:output_type -> identity.v1.RegisterResponse
-	3, // 3: identity.v1.IdentityService.Login:output_type -> identity.v1.LoginResponse
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
+	4, // 2: identity.v1.IdentityService.RefreshToken:input_type -> identity.v1.RefreshTokenRequest
+	5, // 3: identity.v1.IdentityService.Logout:input_type -> google.protobuf.Empty
+	1, // 4: identity.v1.IdentityService.Register:output_type -> identity.v1.RegisterResponse
+	3, // 5: identity.v1.IdentityService.Login:output_type -> identity.v1.LoginResponse
+	3, // 6: identity.v1.IdentityService.RefreshToken:output_type -> identity.v1.LoginResponse
+	5, // 7: identity.v1.IdentityService.Logout:output_type -> google.protobuf.Empty
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -292,7 +347,7 @@ func file_identity_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_identity_proto_rawDesc), len(file_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
