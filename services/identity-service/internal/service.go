@@ -133,3 +133,11 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (string
 
 	return newAccessToken, newRefreshToken, nil
 }
+
+func (s *Service) Logout(ctx context.Context, userID uuid.UUID) error {
+	if err := s.tokenRepo.RevokeAllForUser(ctx, userID); err != nil {
+		return fmt.Errorf("failed to revoke tokens on logout: %v", err)
+	}
+
+	return nil
+}

@@ -6,6 +6,7 @@ require (
 	github.com/Guizzs26/fintrack v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.51.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	golang.org/x/crypto v0.42.0
 	google.golang.org/grpc v1.76.0
@@ -36,5 +37,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
 )
 
-// Replace para usar o módulo local do pkg compartilhado
 replace github.com/Guizzs26/fintrack => ../..

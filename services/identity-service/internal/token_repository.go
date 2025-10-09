@@ -100,3 +100,43 @@ func (r *DynamoDBTokenRepository) Revoke(ctx context.Context, tokenHash string) 
 
 	return item.UserID, nil
 }
+
+func (r *DynamoDBTokenRepository) RevokeAllForUser(ctx context.Context, userID uuid.UUID) error {
+	pk := fmt.Sprintf("USER#%s", userID)
+	queryInput := &dynamodb.QueryInput{
+		TableName:              &r.tableName,
+		KeyConditionExpression: aws.String("PK = :pk AND begins_with(SK, :sk_prefix)"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":pk":        &types.AttributeValueMemberS{Value: pk},
+			":sk_prefix": &types.AttributeValueMemberS{Value: "TOKEN#"},
+		},
+	}
+	output, err := r.client.Query(ctx, queryInput)
+	if err != nil {
+		return fmt.Errorf("failed to query tokens for user: %v", err)
+	}
+
+	if len(output.Items) == 0 {
+		return nil
+	}
+
+	var writeRequests []types.WriteRequest
+	for _, i := range output.Items {
+		writeRequests = append(writeRequests, types.WriteRequest{
+			DeleteRequest: &types.DeleteRequest{
+				Key: map[string]types.AttributeValue{
+					"PK": i["PK"],
+					"SK": i["SK"],
+				},
+			},
+		})
+	}
+
+	_, err = r.client.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+		RequestItems: map[string][]types.WriteRequest{
+			r.tableName: writeRequests,
+		},
+	})
+
+	return err
+}

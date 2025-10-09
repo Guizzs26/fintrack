@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	identityv1 "github.com/Guizzs26/fintrack/services/identity-service/gen/go"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -67,4 +69,15 @@ func (s *Server) RefreshToken(ctx context.Context, req *identityv1.RefreshTokenR
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshToken,
 	}, nil
+}
+
+func (s *Server) Logout(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	userID, _ := uuid.Parse("...") // fake
+
+	if err := s.service.Logout(ctx, userID); err != nil {
+		// Logar o erro aqui
+		return nil, status.Error(codes.Internal, "failed to logout")
+	}
+
+	return &empty.Empty{}, nil
 }
