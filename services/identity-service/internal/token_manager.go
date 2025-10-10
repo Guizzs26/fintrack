@@ -1,9 +1,6 @@
 package identity
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -30,18 +27,4 @@ func (m *JWTManager) Generate(userID uuid.UUID) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(m.secretKey)
-}
-
-func GenerateRefreshToken() (string, string, error) {
-	randomBytes := make([]byte, 32)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return "", "", err
-	}
-	token := hex.EncodeToString(randomBytes)
-
-	// hash token
-	hash := sha256.Sum256([]byte(token))
-	tokenHash := hex.EncodeToString(hash[:])
-
-	return token, tokenHash, nil
 }

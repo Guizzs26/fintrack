@@ -41,7 +41,7 @@ func (s *Server) Login(ctx context.Context, req *identityv1.LoginRequest) (*iden
 		return nil, status.Error(codes.InvalidArgument, "email and password are required")
 	}
 
-	accessToken, refreshToken, err := s.service.Login(ctx, req.GetEmail(), req.GetPassword())
+	tokenPair, err := s.service.Login(ctx, req.GetEmail(), req.GetPassword())
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			return nil, status.Error(codes.Unauthenticated, "invalid credentials")
@@ -50,8 +50,8 @@ func (s *Server) Login(ctx context.Context, req *identityv1.LoginRequest) (*iden
 	}
 
 	return &identityv1.LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		AccessToken:  tokenPair.AccessToken,
+		RefreshToken: tokenPair.RefreshToken,
 	}, nil
 }
 
@@ -60,14 +60,14 @@ func (s *Server) RefreshToken(ctx context.Context, req *identityv1.RefreshTokenR
 		return nil, status.Error(codes.InvalidArgument, "refresh token is required")
 	}
 
-	newAccessToken, newRefreshToken, err := s.service.RefreshToken(ctx, req.GetRefreshToken())
+	tokenPair, err := s.service.RefreshToken(ctx, req.GetRefreshToken())
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
 	}
 
 	return &identityv1.LoginResponse{
-		AccessToken:  newAccessToken,
-		RefreshToken: newRefreshToken,
+		AccessToken:  tokenPair.AccessToken,
+		RefreshToken: tokenPair.RefreshToken,
 	}, nil
 }
 
