@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/google/uuid"
 )
 
 var _ UserRepository = (*DynamoDBUserRepository)(nil)
@@ -125,6 +126,34 @@ func (r *DynamoDBUserRepository) FindByEmail(ctx context.Context, email string) 
 	var user User
 	// unmarshal the first found item back into our Go struct
 	if err := attributevalue.UnmarshalMap(output.Items[0], &user); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal user from dynamodb: %v", err)
+	}
+
+	return &user, nil
+}
+
+func (r *DynamoDBUserRepository) FindByID(ctx context.Context, id uuid.UUID) (*User, error) {
+	log := ctxlogger.GetLogger(ctx)
+
+	input := &dynamodb.GetItemInput{
+		TableName: &r.tableName,
+		Key: map[string]types.AttributeValue{
+			"ID": &types.AttributeValueMemberS{Value: id.String()},
+		},
+	}
+
+	log.Debug("finding user by id in dynamodb", slog.String("user_id", id.String()))
+	output, err := r.client.GetItem(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by id from dynamodb: %v", err)
+	}
+
+	if output.Item == nil {
+		return nil, ErrUserNotFound
+	}
+
+	var user User
+	if err := attributevalue.UnmarshalMap(output.Item, &user); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal user from dynamodb: %v", err)
 	}
 

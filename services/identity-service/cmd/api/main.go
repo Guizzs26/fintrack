@@ -8,6 +8,7 @@ import (
 
 	identityv1 "github.com/Guizzs26/fintrack/services/identity-service/gen/go"
 	identity "github.com/Guizzs26/fintrack/services/identity-service/internal"
+	"github.com/Guizzs26/fintrack/services/identity-service/internal/platform/config"
 	"google.golang.org/grpc"
 )
 
@@ -25,6 +26,13 @@ func main() {
 		log.Fatalf("failed to create dynamodb client: %v", err)
 	}
 
+	cfg := config.Config{
+		PasswordPepper: "kpodasokdpasdkfornowdasinhodad",
+	}
+
+	pepper := cfg.PasswordPepper
+	passManager := identity.NewPasswordManager(pepper)
+
 	jwtSecret := "as0dasoidjaodiaus0e912ijkxkkkkkkkkkk"
 	accessTokenTTL := time.Minute * 15
 	tokenManager := identity.NewJWTManager(jwtSecret, accessTokenTTL)
@@ -32,7 +40,7 @@ func main() {
 	userRepo := identity.NewDynamoDBUserRepository(dbClient, tableName)
 	tokenRepo := identity.NewDynamoDBTokenRepository(dbClient, tableName)
 	publisher := &InMemoryPublisher{}
-	service := identity.NewService(userRepo, tokenRepo, tokenManager, publisher)
+	service := identity.NewService(userRepo, tokenRepo, tokenManager, passManager, publisher)
 	handler := identity.NewServer(service)
 	grpcServer := grpc.NewServer()
 

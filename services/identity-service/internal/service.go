@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/argon2"
 )
 
 type EventPublisher interface {
@@ -21,12 +20,14 @@ type Service struct {
 	tokenRepo    TokenRepository
 	publisher    EventPublisher
 	tokenManager *JWTManager
+	passManager  *PasswordManager
 }
 
 func NewService(
 	r UserRepository,
 	tk TokenRepository,
 	tm *JWTManager,
+	pm *PasswordManager,
 	p EventPublisher,
 ) *Service {
 	return &Service{
@@ -34,6 +35,7 @@ func NewService(
 		tokenRepo:    tk,
 		tokenManager: tm,
 		publisher:    p,
+		passManager:  pm,
 	}
 }
 
@@ -45,9 +47,10 @@ func (s *Service) Register(ctx context.Context, name, email, password string) (*
 		return nil, fmt.Errorf("check user by email for register: %v", err)
 	}
 
-	salt := []byte("somesalt")
-	hash := argon2.IDKey([]byte(password), salt, 1, 10*1024, 4, 32)
-	passwordHash := fmt.Sprintf("%x", hash) // store as hex
+	passwordHash, err := s.passManager.Hash(password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %v", err)
+	}
 
 	user := &User{
 		ID:           uuid.New(),
@@ -73,8 +76,9 @@ func (s *Service) Login(ctx context.Context, email, password string) (accesToken
 		return "", "", fmt.Errorf("authentication failed: %w", ErrUserNotFound)
 	}
 
-	if err := user.ComparePassword(password); err != nil {
-		return "", "", fmt.Errorf("authentication failed: %v", err)
+	match, err := s.passManager.Verify(password, user.PasswordHash)
+	if err != nil || !match {
+		return "", "", fmt.Errorf("authentication failed")
 	}
 
 	accessToken, err := s.tokenManager.Generate(user.ID)
